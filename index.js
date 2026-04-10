@@ -25,11 +25,11 @@ app.post("/", async (req, res) => {
   // 🔹 MENU
   if (text === "/start") return sendMenu(chatId);
 
-  // 🔹 RESUMO (CORRIGIDO)
+  // 🔹 RESUMO (100% corrigido)
   if (text.toLowerCase().includes("resumo")) {
     try {
       const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/Registros?user_id=eq.${chatId.toString()}`,
+        `${SUPABASE_URL}/rest/v1/Registros?select=Valor,user_id&user_id=eq.${chatId}`,
         {
           headers: {
             "apikey": SUPABASE_KEY,
@@ -40,18 +40,24 @@ app.post("/", async (req, res) => {
 
       const dados = await response.json();
 
-      console.log("DADOS RESUMO:", dados);
+      console.log("CHAT ID:", chatId);
+      console.log("DADOS DO BANCO:", dados);
+
+      if (!Array.isArray(dados) || dados.length === 0) {
+        return sendMessage(chatId, "📊 Total acumulado: R$ 0.00");
+      }
 
       let total = 0;
 
       dados.forEach(item => {
-        total += Number(item.Valor);
+        const valor = Number(item.Valor || 0);
+        total += valor;
       });
 
       return sendMessage(chatId, `📊 Total acumulado: R$ ${total.toFixed(2)}`);
 
     } catch (error) {
-      console.log(error);
+      console.log("ERRO RESUMO:", error);
       return sendMessage(chatId, "Erro ao buscar dados.");
     }
   }
@@ -142,7 +148,7 @@ app.post("/", async (req, res) => {
         })
       });
     } catch (e) {
-      console.log("Erro:", e);
+      console.log("Erro ao salvar:", e);
     }
 
     delete userState[chatId];
