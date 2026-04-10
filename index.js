@@ -56,10 +56,105 @@ app.post("/", async (req, res) => {
   const chatId = message.chat.id;
   const text = message.text.trim();
 
+  // ================= VALIDA ACESSO =================
+let user;
+
+try {
+  const res = await fetch(
+    SUPABASE_URL + "/rest/v1/usuarios?id=eq." + chatId.toString(),
+    {
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: "Bearer " + SUPABASE_KEY
+      }
+    }
+  );
+
+  const data = await res.json();
+  user = data[0];
+
+} catch (e) {
+  console.log("Erro user:", e);
+}
+
+// bloqueio
+if (user) {
+  const agora = new Date();
+
+  const trial = new Date(user.trial_fim);
+  const plano = user.plano_ate ? new Date(user.plano_ate) : null;
+
+  if (agora > trial && (!plano || agora > plano)) {
+    return sendMessage(chatId,
+      "🚫 Seu período grátis acabou.\n\nAssine por R$9,90 para continuar.\n\nEm breve: botão de pagamento."
+    );
+  }
+}
   console.log("Mensagem:", text);
 
   // ================= MENU =================
-  if (text === "/start") return sendMenu(chatId);
+  if (text.startsWith("/start")) {
+  try {
+    // pega referência (indicação)
+    const partes = text.split(" ");
+    const ref = partes[1];
+
+    // verifica se já existe
+    const check = await fetch(
+      SUPABASE_URL + "/rest/v1/usuarios?id=eq." + chatId.toString(),
+      {
+        headers: {
+          apikey: SUPABASE_KEY,
+          Authorization: "Bearer " + SUPABASE_KEY
+        }
+      }
+    );
+
+    const existe = await check.json();
+
+    // se NÃO existir → cria
+    if (!existe || existe.length === 0) {
+
+      await fetch(SUPABASE_URL + "/rest/v1/usuarios", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: SUPABASE_KEY,
+          Authorization: "Bearer " + SUPABASE_KEY
+        },
+        body: JSON.stringify({
+          id: chatId.toString(),
+          trial_fim: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+          indicacoes: 0,
+          indicados_pagantes: 0
+        })
+      });
+
+      // se veio indicação válida
+      if (ref && ref !== chatId.toString()) {
+        await fetch(
+          SUPABASE_URL + "/rest/v1/usuarios?id=eq." + ref,
+          {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              apikey: SUPABASE_KEY,
+              Authorization: "Bearer " + SUPABASE_KEY
+            },
+            body: JSON.stringify({
+              indicacoes: 1 // depois podemos melhorar isso
+            })
+          }
+        );
+      }
+    }
+
+  } catch (e) {
+    console.log("Erro cadastro:", e);
+  }
+
+  return sendMenu(chatId);
+}
 
   // ================= SUGESTÃO (INICIO) =================
   if (text.includes("Sugerir melhoria")) {
