@@ -9,213 +9,150 @@ const TOKEN = "8613535785:AAFPfKjg94JavGcU7-WznFRotjHEAGBdVaQ";
 const SUPABASE_URL = "https://wvqrpliefwtmbswbbjnt.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind2cXJwbGllZnd0bWJzd2Jiam50Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MDAxNTUsImV4cCI6MjA5MTM3NjE1NX0.E8vzsrpWYNKfrYXtn2DFo7m7ZS0__Weo6TcQOa9AbHw";
 
-// memória simples
 const userState = {};
 
 app.post("/", async (req, res) => {
+  res.sendStatus(200); // 🔥 RESPONDE IMEDIATO (evita loop)
+
   const message = req.body.message;
+  if (!message || !message.text) return;
 
-  if (message && message.text) {
-    const chatId = message.chat.id;
-    const text = message.text;
+  const chatId = message.chat.id;
+  const text = message.text.trim();
 
-    console.log("Mensagem recebida:", text);
+  console.log("Mensagem recebida:", text);
 
-    // 🔹 MENU (não precisa mais /start sempre)
-    if (text === "/start") {
-      await sendMenu(chatId);
-      return res.sendStatus(200);
-    }
+  // MENU
+  if (text === "/start") return sendMenu(chatId);
 
-    // 🔹 INICIO GANHO
-    if (text === "➕ Adicionar ganho") {
-      userState[chatId] = { step: "data", tipo: "ganho" };
+  // GANHO
+  if (text === "➕ Adicionar ganho") {
+    userState[chatId] = { step: "data", tipo: "ganho" };
 
-      await fetch(`https://api.telegram.org/bot${TOKEN}/sendMessage`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text: "Escolha a data:",
-          reply_markup: {
-            keyboard: [
-              ["📅 Hoje", "📅 Ontem"],
-              ["📅 Outra data"]
-            ],
-            resize_keyboard: true
-          }
-        }),
-      });
-
-      return res.sendStatus(200);
-    }
-
-    // 🔹 DATA HOJE
-    if (text === "📅 Hoje" && userState[chatId]) {
-      userState[chatId].data = new Date().toISOString();
-      userState[chatId].step = "valor";
-
-      await perguntarValor(chatId);
-      return res.sendStatus(200);
-    }
-
-    // 🔹 DATA ONTEM
-    if (text === "📅 Ontem" && userState[chatId]) {
-      const ontem = new Date();
-      ontem.setDate(ontem.getDate() - 1);
-
-      userState[chatId].data = ontem.toISOString();
-      userState[chatId].step = "valor";
-
-      await perguntarValor(chatId);
-      return res.sendStatus(200);
-    }
-
-    // 🔹 OUTRA DATA
-    if (text === "📅 Outra data" && userState[chatId]) {
-      userState[chatId].step = "digitando_data";
-
-      await fetch(`https://api.telegram.org/bot${TOKEN}/sendMessage`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text: "Digite a data no formato DD/MM/AAAA (ex: 10/04/2026):",
-        }),
-      });
-
-      return res.sendStatus(200);
-    }
-
-    // 🔹 RECEBE DATA MANUAL (BR)
-    if (userState[chatId]?.step === "digitando_data") {
-      const partes = text.split("/");
-
-      if (partes.length !== 3) {
-        return enviarErro(chatId, "Formato inválido. Use DD/MM/AAAA");
-      }
-
-      const [dia, mes, ano] = partes;
-      const data = new Date(`${ano}-${mes}-${dia}`);
-
-      if (isNaN(data)) {
-        return enviarErro(chatId, "Data inválida.");
-      }
-
-      userState[chatId].data = data.toISOString();
-      userState[chatId].step = "valor";
-
-      await perguntarValor(chatId);
-      return res.sendStatus(200);
-    }
-
-    // 🔹 RECEBE VALOR
-    if (userState[chatId]?.step === "valor") {
-      const valor = parseFloat(text);
-
-      if (isNaN(valor)) {
-        return enviarErro(chatId, "Digite um número válido.");
-      }
-
-      const dados = userState[chatId];
-
-      try {
-        const response = await fetch(`${SUPABASE_URL}/rest/v1/Registros`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "apikey": SUPABASE_KEY,
-            "Authorization": `Bearer ${SUPABASE_KEY}`
-          },
-          body: JSON.stringify({
-            user_id: chatId.toString(),
-            Tipo: dados.tipo,
-            Valor: valor,
-            Data: dados.data
-          })
-        });
-
-        const resp = await response.text();
-        console.log("SUPABASE RESPONSE:", resp);
-
-      } catch (error) {
-        console.log("ERRO AO SALVAR:", error);
-      }
-
-      delete userState[chatId];
-
-      // 🔹 VOLTA PRO MENU AUTOMÁTICO
-      await fetch(`https://api.telegram.org/bot${TOKEN}/sendMessage`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text: `✅ Registrado: R$${valor}\n\nEscolha uma opção:`,
-          reply_markup: {
-            keyboard: [
-              ["➕ Adicionar ganho"],
-              ["💸 Registrar gasto"],
-              ["📊 Ver resumo"]
-            ],
-            resize_keyboard: true
-          }
-        }),
-      });
-
-      return res.sendStatus(200);
-    }
+    return sendMessage(chatId, "Escolha a data:", {
+      keyboard: [
+        ["📅 Hoje", "📅 Ontem"],
+        ["📅 Outra data"]
+      ],
+      resize_keyboard: true
+    });
   }
 
-  res.sendStatus(200);
+  // HOJE
+  if (text === "📅 Hoje" && userState[chatId]) {
+    userState[chatId].data = new Date().toISOString();
+    userState[chatId].step = "valor";
+    return sendMessage(chatId, "Digite o valor:");
+  }
+
+  // ONTEM
+  if (text === "📅 Ontem" && userState[chatId]) {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    userState[chatId].data = d.toISOString();
+    userState[chatId].step = "valor";
+    return sendMessage(chatId, "Digite o valor:");
+  }
+
+  // OUTRA DATA
+  if (text === "📅 Outra data" && userState[chatId]) {
+    userState[chatId].step = "digitando_data";
+    return sendMessage(chatId, "Digite a data (DD/MM/AAAA):");
+  }
+
+  // DATA MANUAL
+  if (userState[chatId]?.step === "digitando_data") {
+    const regex = /^\d{2}\/\d{2}\/\d{4}$/;
+
+    if (!regex.test(text)) {
+      return sendMessage(chatId, "Formato inválido. Use DD/MM/AAAA");
+    }
+
+    const [dia, mes, ano] = text.split("/").map(Number);
+    const data = new Date(ano, mes - 1, dia);
+
+    // validação forte
+    if (
+      data.getFullYear() !== ano ||
+      data.getMonth() !== mes - 1 ||
+      data.getDate() !== dia
+    ) {
+      return sendMessage(chatId, "Data inválida.");
+    }
+
+    userState[chatId].data = data.toISOString();
+    userState[chatId].step = "valor";
+
+    return sendMessage(chatId, "Digite o valor:");
+  }
+
+  // VALOR
+  if (userState[chatId]?.step === "valor") {
+    const valor = parseFloat(text.replace(",", "."));
+
+    if (isNaN(valor)) {
+      return sendMessage(chatId, "Digite um número válido.");
+    }
+
+    const dados = userState[chatId];
+
+    try {
+      await fetch(`${SUPABASE_URL}/rest/v1/Registros`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": SUPABASE_KEY,
+          "Authorization": `Bearer ${SUPABASE_KEY}`
+        },
+        body: JSON.stringify({
+          user_id: chatId.toString(),
+          Tipo: dados.tipo,
+          Valor: valor,
+          Data: dados.data
+        })
+      });
+    } catch (e) {
+      console.log("Erro:", e);
+    }
+
+    delete userState[chatId];
+
+    return sendMessage(chatId, `✅ Registrado: R$${valor}`, {
+      keyboard: [
+        ["➕ Adicionar ganho"],
+        ["💸 Registrar gasto"],
+        ["📊 Ver resumo"]
+      ],
+      resize_keyboard: true
+    });
+  }
 });
 
-// 🔹 FUNÇÕES AUXILIARES
+// 🔹 FUNÇÕES
 
-async function perguntarValor(chatId) {
-  await fetch(`https://api.telegram.org/bot${TOKEN}/sendMessage`, {
+function sendMessage(chatId, text, keyboard = null) {
+  return fetch(`https://api.telegram.org/bot${TOKEN}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       chat_id: chatId,
-      text: "Digite o valor:",
-    }),
+      text,
+      reply_markup: keyboard || undefined
+    })
   });
 }
 
-async function enviarErro(chatId, msg) {
-  await fetch(`https://api.telegram.org/bot${TOKEN}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text: msg,
-    }),
+function sendMenu(chatId) {
+  return sendMessage(chatId, "Escolha uma opção:", {
+    keyboard: [
+      ["➕ Adicionar ganho"],
+      ["💸 Registrar gasto"],
+      ["📊 Ver resumo"]
+    ],
+    resize_keyboard: true
   });
 }
-
-async function sendMenu(chatId) {
-  await fetch(`https://api.telegram.org/bot${TOKEN}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text: "Escolha uma opção:",
-      reply_markup: {
-        keyboard: [
-          ["➕ Adicionar ganho"],
-          ["💸 Registrar gasto"],
-          ["📊 Ver resumo"]
-        ],
-        resize_keyboard: true
-      }
-    }),
-  });
-}
-
-app.get("/", (req, res) => {
-  res.send("Bot rodando 🚀");
-});
 
 app.listen(3000, () => {
-  console.log("Servidor rodando na porta 3000");
+  console.log("Servidor rodando 🚀");
 });
