@@ -61,6 +61,12 @@ app.post("/", async (req, res) => {
   // ================= MENU =================
   if (text === "/start") return sendMenu(chatId);
 
+  // ================= SUGESTÃO (INICIO) =================
+  if (text.includes("Sugerir melhoria")) {
+    userState[chatId] = { step: "sugestao" };
+    return sendMessage(chatId, "💡 Digite sua sugestão:");
+  }
+
   // ================= RESUMO COMPLETO =================
   if (text === "📊 Ver resumo") {
     try {
@@ -167,7 +173,7 @@ app.post("/", async (req, res) => {
     });
   }
 
-  // ================= ESCOLHER CATEGORIA =================
+  // ================= CATEGORIA =================
   if (userState[chatId] && userState[chatId].step === "categoria_gasto") {
     let categoria = "";
 
@@ -251,6 +257,21 @@ app.post("/", async (req, res) => {
     return sendMessage(chatId, "Formato inválido.");
   }
 
+  // ================= SUGESTÃO (CAPTURA) =================
+  if (userState[chatId] && userState[chatId].step === "sugestao") {
+    const sugestao = text;
+
+    const GRUPO_ID = "-100XXXXXXXXXX"; // COLOCA SEU ID
+
+    await sendMessage(GRUPO_ID,
+      `💡 NOVA SUGESTÃO\n\n👤 User: ${chatId}\n📝 ${sugestao}`
+    );
+
+    delete userState[chatId];
+
+    return sendMessage(chatId, "✅ Sugestão enviada!");
+  }
+
   // ================= VALOR =================
   if (userState[chatId] && userState[chatId].step === "valor") {
     let valor = parseFloat(text.replace(",", "."));
@@ -312,9 +333,8 @@ function sendMessage(chatId, text, keyboard) {
 function sendMenu(chatId) {
   return sendMessage(chatId, "Escolha uma opção:", {
     keyboard: [
-      ["➕ Adicionar ganho"],
-      ["💸 Registrar gasto"],
-      ["📊 Ver resumo"]
+      ["➕ Adicionar ganho", "💸 Registrar gasto"],
+      ["📊 Ver resumo", "💡 Sugerir melhoria"]
     ],
     resize_keyboard: true
   });
