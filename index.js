@@ -12,7 +12,7 @@ const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const userState = {};
 
 app.post("/", async (req, res) => {
-  res.sendStatus(200); // 🔥 RESPONDE IMEDIATO (evita loop)
+  res.sendStatus(200); // evita loop
 
   const message = req.body.message;
   if (!message || !message.text) return;
@@ -22,11 +22,40 @@ app.post("/", async (req, res) => {
 
   console.log("Mensagem recebida:", text);
 
-  // MENU
+  // 🔹 MENU
   if (text === "/start") return sendMenu(chatId);
 
-  // GANHO
-  if (text === "➕ Adicionar ganho") {
+  // 🔹 RESUMO (corrigido)
+  if (text.toLowerCase().includes("resumo")) {
+    try {
+      const response = await fetch(
+        `${SUPABASE_URL}/rest/v1/Registros?user_id=eq.${chatId}`,
+        {
+          headers: {
+            "apikey": SUPABASE_KEY,
+            "Authorization": `Bearer ${SUPABASE_KEY}`
+          }
+        }
+      );
+
+      const dados = await response.json();
+
+      let total = 0;
+
+      dados.forEach(item => {
+        total += Number(item.Valor);
+      });
+
+      return sendMessage(chatId, `📊 Total acumulado: R$${total}`);
+
+    } catch (error) {
+      console.log(error);
+      return sendMessage(chatId, "Erro ao buscar dados.");
+    }
+  }
+
+  // 🔹 INICIO GANHO
+  if (text.includes("Adicionar ganho")) {
     userState[chatId] = { step: "data", tipo: "ganho" };
 
     return sendMessage(chatId, "Escolha a data:", {
@@ -38,15 +67,15 @@ app.post("/", async (req, res) => {
     });
   }
 
-  // HOJE
-  if (text === "📅 Hoje" && userState[chatId]) {
+  // 🔹 DATA HOJE
+  if (text.includes("Hoje") && userState[chatId]) {
     userState[chatId].data = new Date().toISOString();
     userState[chatId].step = "valor";
     return sendMessage(chatId, "Digite o valor:");
   }
 
-  // ONTEM
-  if (text === "📅 Ontem" && userState[chatId]) {
+  // 🔹 DATA ONTEM
+  if (text.includes("Ontem") && userState[chatId]) {
     const d = new Date();
     d.setDate(d.getDate() - 1);
     userState[chatId].data = d.toISOString();
@@ -54,13 +83,13 @@ app.post("/", async (req, res) => {
     return sendMessage(chatId, "Digite o valor:");
   }
 
-  // OUTRA DATA
-  if (text === "📅 Outra data" && userState[chatId]) {
+  // 🔹 OUTRA DATA
+  if (text.includes("Outra data") && userState[chatId]) {
     userState[chatId].step = "digitando_data";
     return sendMessage(chatId, "Digite a data (DD/MM/AAAA):");
   }
 
-  // DATA MANUAL
+  // 🔹 DATA MANUAL (BR)
   if (userState[chatId]?.step === "digitando_data") {
     const regex = /^\d{2}\/\d{2}\/\d{4}$/;
 
@@ -71,7 +100,6 @@ app.post("/", async (req, res) => {
     const [dia, mes, ano] = text.split("/").map(Number);
     const data = new Date(ano, mes - 1, dia);
 
-    // validação forte
     if (
       data.getFullYear() !== ano ||
       data.getMonth() !== mes - 1 ||
@@ -86,7 +114,7 @@ app.post("/", async (req, res) => {
     return sendMessage(chatId, "Digite o valor:");
   }
 
-  // VALOR
+  // 🔹 VALOR
   if (userState[chatId]?.step === "valor") {
     const valor = parseFloat(text.replace(",", "."));
 
@@ -114,35 +142,7 @@ app.post("/", async (req, res) => {
     } catch (e) {
       console.log("Erro:", e);
     }
-      if (text === "📊 Ver resumo") {
-  try {
-    const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/Registros?user_id=eq.${chatId}`,
-      {
-        headers: {
-          "apikey": SUPABASE_KEY,
-          "Authorization": `Bearer ${SUPABASE_KEY}`
-        }
-      }
-    );
 
-    const dados = await response.json();
-
-    let total = 0;
-
-    dados.forEach(item => {
-      total += Number(item.Valor);
-    });
-
-    await sendMessage(chatId, `📊 Total acumulado: R$${total}`);
-
-  } catch (error) {
-    console.log(error);
-    await sendMessage(chatId, "Erro ao buscar dados.");
-  }
-
-  return; // 🔥 IMPORTANTE (evita conflito com outros fluxos)
-}
     delete userState[chatId];
 
     return sendMessage(chatId, `✅ Registrado: R$${valor}`, {
