@@ -27,26 +27,34 @@ app.post("/", async (req, res) => {
 
   // 🔹 RESUMO (corrigido)
   if (text.toLowerCase().includes("resumo")) {
-    try {
-      const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/Registros?user_id=eq.${chatId}`,
-        {
-          headers: {
-            "apikey": SUPABASE_KEY,
-            "Authorization": `Bearer ${SUPABASE_KEY}`
-          }
+  try {
+    const response = await fetch(
+      `${SUPABASE_URL}/rest/v1/Registros?user_id=eq.${chatId.toString()}`,
+      {
+        headers: {
+          "apikey": SUPABASE_KEY,
+          "Authorization": `Bearer ${SUPABASE_KEY}`
         }
-      );
+      }
+    );
 
-      const dados = await response.json();
+    const dados = await response.json();
 
-      let total = 0;
+    console.log("DADOS RESUMO:", dados); // 👈 DEBUG
 
-      dados.forEach(item => {
-        total += Number(item.Valor);
-      });
+    let total = 0;
 
-      return sendMessage(chatId, `📊 Total acumulado: R$${total}`);
+    dados.forEach(item => {
+      total += Number(item.Valor);
+    });
+
+    return sendMessage(chatId, `📊 Total acumulado: R$${total}`);
+
+  } catch (error) {
+    console.log(error);
+    return sendMessage(chatId, "Erro ao buscar dados.");
+  }
+}
 
     } catch (error) {
       console.log(error);
