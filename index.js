@@ -32,8 +32,8 @@ app.post("/", async (req, res) => {
   },
   body: JSON.stringify({
     user_id: chatId.toString(),
-    tipo: "ganho",
-    valor: valor
+    Tipo: "ganho",
+    Valor: valor
   })
 });
 
