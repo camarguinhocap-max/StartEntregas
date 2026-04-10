@@ -261,7 +261,7 @@ app.post("/", async (req, res) => {
   if (userState[chatId] && userState[chatId].step === "sugestao") {
     const sugestao = text;
 
-    const GRUPO_ID = "-100XXXXXXXXXX"; // COLOCA SEU ID
+    const GRUPO_ID = "-5207183146"; // COLOCA SEU ID
 
     await sendMessage(GRUPO_ID,
       `💡 NOVA SUGESTÃO\n\n👤 User: ${chatId}\n📝 ${sugestao}`
