@@ -32,8 +32,8 @@ app.post("/", async (req, res) => {
       `${SUPABASE_URL}/rest/v1/Registros?select=Valor,Data&user_id=eq.${chatId}`,
       {
         headers: {
-          "apikey": SUPABASE_KEY,
-          "Authorization": `Bearer ${SUPABASE_KEY}`
+          apikey: SUPABASE_KEY,
+          Authorization: `Bearer ${SUPABASE_KEY}`
         }
       }
     );
@@ -42,8 +42,8 @@ app.post("/", async (req, res) => {
 
     const hoje = new Date();
 
-    // 🔹 INICIO DA SEMANA (segunda)
-    const diaSemana = hoje.getDay(); // 0 = domingo
+    // INICIO DA SEMANA (segunda)
+    const diaSemana = hoje.getDay();
     const diffParaSegunda = diaSemana === 0 ? -6 : 1 - diaSemana;
 
     const inicioSemana = new Date(hoje);
@@ -54,8 +54,10 @@ app.post("/", async (req, res) => {
     fimSemana.setDate(inicioSemana.getDate() + 6);
     fimSemana.setHours(23, 59, 59, 999);
 
-    // 🔹 INICIO E FIM DO MÊS
+    // INICIO E FIM DO MÊS
     const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+    inicioMes.setHours(0, 0, 0, 0);
+
     const fimMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
     fimMes.setHours(23, 59, 59, 999);
 
@@ -64,7 +66,7 @@ app.post("/", async (req, res) => {
     let semanaTotal = 0;
     let mesTotal = 0;
 
-    dados.forEach(item => {
+    dados.forEach(function(item) {
       const valor = Number(item.Valor || 0);
       const data = new Date(item.Data);
 
@@ -75,31 +77,31 @@ app.post("/", async (req, res) => {
         hojeTotal += valor;
       }
 
-      // SEMANA (segunda a domingo)
+      // SEMANA
       if (data >= inicioSemana && data <= fimSemana) {
         semanaTotal += valor;
       }
 
-      // MÊS (somente mês atual)
+      // MÊS
       if (data >= inicioMes && data <= fimMes) {
         mesTotal += valor;
       }
     });
 
-    return sendMessage(
-      chatId,
-      `📊 *Resumo financeiro:*
+    const mensagem =
+      "📊 Resumo financeiro:\n\n" +
+      "📅 Hoje: R$ " + hojeTotal.toFixed(2) + "\n" +
+      "📆 Semana: R$ " + semanaTotal.toFixed(2) + "\n" +
+      "🗓️ Mês: R$ " + mesTotal.toFixed(2) + "\n\n" +
+      "💰 Total: R$ " + total.toFixed(2);
 
-📅 Hoje: R$ ${hojeTotal.toFixed(2)}
-📆 Semana: R$ ${semanaTotal.toFixed(2)}
-🗓️ Mês: R$ ${mesTotal.toFixed(2)}
+    return sendMessage(chatId, mensagem);
 
-💰 Total: R$ ${total.toFixed(2)}`,
-      {
-        parse_mode: "Markdown"
-      }
-    );
-
+  } catch (error) {
+    console.log("ERRO RESUMO:", error);
+    return sendMessage(chatId, "Erro ao buscar dados.");
+  }
+}
   } catch (error) {
     console.log(error);
     return sendMessage(chatId, "Erro ao buscar dados.");
