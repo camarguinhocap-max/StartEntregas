@@ -3,11 +3,31 @@ const app = express();
 
 app.use(express.json());
 
-app.post("/", (req, res) => {
+const TOKEN = "SEU_TOKEN_AQUI";
+
+app.post("/", async (req, res) => {
   const message = req.body.message;
 
   if (message && message.text) {
-    console.log("Mensagem recebida:", message.text);
+    const chatId = message.chat.id;
+    const text = message.text;
+
+    console.log("Mensagem recebida:", text);
+
+    // resposta simples
+    const resposta = `✅ Registrado: R$${text}`;
+
+    // enviar resposta para o Telegram
+    await fetch(`https://api.telegram.org/bot${TOKEN}/sendMessage`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: resposta,
+      }),
+    });
   }
 
   res.sendStatus(200);
