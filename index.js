@@ -161,6 +161,18 @@ if (user) {
     userState[chatId] = { step: "sugestao" };
     return sendMessage(chatId, "💡 Digite sua sugestão:");
   }
+  if (text.includes("Indicar")) {
+  const link = `https://t.me/SEU_BOT?start=${chatId}`;
+
+  return sendMessage(chatId,
+`🚀 Indique e ganhe 1 mês grátis!
+
+Convide 10 amigos que assinarem.
+
+Seu link:
+${link}`
+  );
+}
 
   // ================= RESUMO COMPLETO =================
   if (text === "📊 Ver resumo") {
@@ -428,9 +440,10 @@ function sendMessage(chatId, text, keyboard) {
 function sendMenu(chatId) {
   return sendMessage(chatId, "Escolha uma opção:", {
     keyboard: [
-      ["➕ Adicionar ganho", "💸 Registrar gasto"],
-      ["📊 Ver resumo", "💡 Sugerir melhoria"]
-    ],
+  ["➕ Adicionar ganho", "💸 Registrar gasto"],
+  ["📊 Ver resumo", "💡 Sugerir melhoria"],
+  ["🚀 Indicar e ganhar"]
+]
     resize_keyboard: true
   });
 }
