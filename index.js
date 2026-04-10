@@ -51,9 +51,7 @@ app.post("/", async (req, res) => {
   res.sendStatus(200);
 
   const message = req.body.message;
-  if (!message) return;
-
-  if (!message.text) return;
+  if (!message || !message.text) return;
 
   const chatId = message.chat.id;
   const text = message.text.trim();
@@ -155,9 +153,32 @@ app.post("/", async (req, res) => {
     }
   }
 
-  // ================= GASTO =================
+  // ================= REGISTRAR GASTO =================
   if (text.includes("Registrar gasto")) {
-    userState[chatId] = { step: "data", tipo: "gasto" };
+    userState[chatId] = { step: "categoria_gasto", tipo: "gasto" };
+
+    return sendMessage(chatId, "Escolha o tipo de gasto:", {
+      keyboard: [
+        ["⛽ Combustível"],
+        ["💼 Pró-labore"],
+        ["📦 Outros"]
+      ],
+      resize_keyboard: true
+    });
+  }
+
+  // ================= ESCOLHER CATEGORIA =================
+  if (userState[chatId] && userState[chatId].step === "categoria_gasto") {
+    let categoria = "";
+
+    if (text.includes("Combustível")) categoria = "combustivel";
+    else if (text.includes("Pró-labore")) categoria = "pro_labore";
+    else if (text.includes("Outros")) categoria = "outros";
+
+    if (!categoria) return sendMessage(chatId, "Escolha válida.");
+
+    userState[chatId].categoria = categoria;
+    userState[chatId].step = "data";
 
     return sendMessage(chatId, "Escolha a data:", {
       keyboard: [
@@ -168,7 +189,7 @@ app.post("/", async (req, res) => {
     });
   }
 
-  // ================= GANHO =================
+  // ================= ADICIONAR GANHO =================
   if (text.includes("Adicionar ganho")) {
     userState[chatId] = { step: "data", tipo: "ganho" };
 
@@ -208,11 +229,7 @@ app.post("/", async (req, res) => {
       const hoje = new Date();
       const dia = parseInt(texto);
 
-      const data = new Date(
-        hoje.getFullYear(),
-        hoje.getMonth(),
-        dia
-      );
+      const data = new Date(hoje.getFullYear(), hoje.getMonth(), dia);
 
       userState[chatId].data = data.toISOString();
       userState[chatId].step = "valor";
@@ -246,8 +263,9 @@ app.post("/", async (req, res) => {
 
     const dados = userState[chatId];
 
-    let categoria = null;
-    if (dados.tipo === "gasto") {
+    let categoria = dados.categoria;
+
+    if (dados.tipo === "gasto" && categoria === "outros") {
       categoria = categorizarGasto(text);
     }
 
