@@ -26,7 +26,7 @@ app.post("/", async (req, res) => {
   if (text === "/start") return sendMenu(chatId);
 
   // 🔹 RESUMO (100% corrigido)
-  if (text.toLowerCase().includes("resumo")) {
+ if (text.toLowerCase().includes("resumo")) {
   try {
     const response = await fetch(
       `${SUPABASE_URL}/rest/v1/Registros?select=Valor,Data&user_id=eq.${chatId}`,
@@ -41,6 +41,24 @@ app.post("/", async (req, res) => {
     const dados = await response.json();
 
     const hoje = new Date();
+
+    // 🔹 INICIO DA SEMANA (segunda)
+    const diaSemana = hoje.getDay(); // 0 = domingo
+    const diffParaSegunda = diaSemana === 0 ? -6 : 1 - diaSemana;
+
+    const inicioSemana = new Date(hoje);
+    inicioSemana.setDate(hoje.getDate() + diffParaSegunda);
+    inicioSemana.setHours(0, 0, 0, 0);
+
+    const fimSemana = new Date(inicioSemana);
+    fimSemana.setDate(inicioSemana.getDate() + 6);
+    fimSemana.setHours(23, 59, 59, 999);
+
+    // 🔹 INICIO E FIM DO MÊS
+    const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+    const fimMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
+    fimMes.setHours(23, 59, 59, 999);
+
     let total = 0;
     let hojeTotal = 0;
     let semanaTotal = 0;
@@ -57,20 +75,36 @@ app.post("/", async (req, res) => {
         hojeTotal += valor;
       }
 
-      // SEMANA
-      const diffDias = (hoje - data) / (1000 * 60 * 60 * 24);
-      if (diffDias <= 7) {
+      // SEMANA (segunda a domingo)
+      if (data >= inicioSemana && data <= fimSemana) {
         semanaTotal += valor;
       }
 
-      // MÊS
-      if (
-        data.getMonth() === hoje.getMonth() &&
-        data.getFullYear() === hoje.getFullYear()
-      ) {
+      // MÊS (somente mês atual)
+      if (data >= inicioMes && data <= fimMes) {
         mesTotal += valor;
       }
     });
+
+    return sendMessage(
+      chatId,
+      `📊 *Resumo financeiro:*
+
+📅 Hoje: R$ ${hojeTotal.toFixed(2)}
+📆 Semana: R$ ${semanaTotal.toFixed(2)}
+🗓️ Mês: R$ ${mesTotal.toFixed(2)}
+
+💰 Total: R$ ${total.toFixed(2)}`,
+      {
+        parse_mode: "Markdown"
+      }
+    );
+
+  } catch (error) {
+    console.log(error);
+    return sendMessage(chatId, "Erro ao buscar dados.");
+  }
+}
 
     return sendMessage(
       chatId,
