@@ -22,9 +22,10 @@ app.post("/", async (req, res) => {
 
   console.log("Mensagem:", text);
 
+  // ================= MENU =================
   if (text === "/start") return sendMenu(chatId);
 
-  // ================= RESUMO PROFISSIONAL =================
+  // ================= RESUMO COMPLETO =================
   if (text.toLowerCase().includes("resumo")) {
     try {
       const response = await fetch(
@@ -38,6 +39,7 @@ app.post("/", async (req, res) => {
       );
 
       const dados = await response.json();
+
       const hoje = new Date();
 
       const diaSemana = hoje.getDay();
@@ -104,34 +106,38 @@ app.post("/", async (req, res) => {
       const saldoSemana = ganhosSemana - gastosSemana;
       const saldoMes = ganhosMes - gastosMes;
 
-      const mensagem =
-        "📊 RESUMO FINANCEIRO\n\n" +
+      // 🔥 AQUI ESTAVA O ERRO (CORRIGIDO)
+      let mensagem =
+        "📊 *RESUMO FINANCEIRO*\n\n" +
 
-        "📅 HOJE\n" +
+        "📅 *HOJE*\n" +
         "💰 Ganhos: R$ " + ganhosHoje.toFixed(2) + "\n" +
         "💸 Gastos: R$ " + gastosHoje.toFixed(2) + "\n" +
         "📊 Saldo: R$ " + saldoHoje.toFixed(2) + "\n\n" +
 
-        "📆 SEMANA\n" +
+        "📆 *SEMANA*\n" +
         "💰 Ganhos: R$ " + ganhosSemana.toFixed(2) + "\n" +
         "💸 Gastos: R$ " + gastosSemana.toFixed(2) + "\n" +
         "📊 Saldo: R$ " + saldoSemana.toFixed(2) + "\n\n" +
 
-        "🗓️ MÊS\n" +
+        "🗓️ *MÊS*\n" +
         "💰 Ganhos: R$ " + ganhosMes.toFixed(2) + "\n" +
         "💸 Gastos: R$ " + gastosMes.toFixed(2) + "\n" +
         "📊 Saldo: R$ " + saldoMes.toFixed(2) + "\n\n" +
 
-        "💼 TOTAL GERAL\n" +
+        "💼 *TOTAL GERAL*\n" +
         "💰 Ganhos: R$ " + ganhos.toFixed(2) + "\n" +
         "💸 Gastos: R$ " + gastos.toFixed(2) + "\n" +
         "📊 Saldo: R$ " + saldo.toFixed(2);
 
-const link = "https://v0-startentregras.vercel.app/?user_id=" + chatId;
+      // 🔥 LINK DO DASHBOARD
+      const link = "https://v0-startentregras.vercel.app/?user_id=" + chatId;
 
-mensagem += "\n\n📊 Ver dashboard completo:\n" + link;
-      
-      return sendMessage(chatId, mensagem);
+      mensagem += "\n\n📈 Ver dashboard completo:\n" + link;
+
+      return sendMessage(chatId, mensagem, {
+        parse_mode: "Markdown"
+      });
 
     } catch (error) {
       console.log(error);
@@ -139,7 +145,7 @@ mensagem += "\n\n📊 Ver dashboard completo:\n" + link;
     }
   }
 
-  // ================= GASTOS =================
+  // ================= REGISTRAR GASTO =================
   if (text.includes("Registrar gasto")) {
     userState[chatId] = { step: "categoria_gasto", tipo: "gasto" };
 
@@ -174,7 +180,7 @@ mensagem += "\n\n📊 Ver dashboard completo:\n" + link;
     });
   }
 
-  // ================= GANHO =================
+  // ================= ADICIONAR GANHO =================
   if (text.includes("Adicionar ganho")) {
     userState[chatId] = { step: "data", tipo: "ganho" };
 
@@ -259,7 +265,7 @@ mensagem += "\n\n📊 Ver dashboard completo:\n" + link;
   }
 });
 
-// FUNÇÕES
+// ================= FUNÇÕES =================
 function sendMessage(chatId, text, keyboard) {
   return fetch("https://api.telegram.org/bot" + TOKEN + "/sendMessage", {
     method: "POST",
@@ -267,19 +273,21 @@ function sendMessage(chatId, text, keyboard) {
     body: JSON.stringify({
       chat_id: chatId,
       text: text,
-      reply_markup: keyboard || undefined
+      ...keyboard
     })
   });
 }
 
 function sendMenu(chatId) {
   return sendMessage(chatId, "Escolha uma opção:", {
-    keyboard: [
-      ["➕ Adicionar ganho"],
-      ["💸 Registrar gasto"],
-      ["📊 Ver resumo"]
-    ],
-    resize_keyboard: true
+    reply_markup: {
+      keyboard: [
+        ["➕ Adicionar ganho"],
+        ["💸 Registrar gasto"],
+        ["📊 Ver resumo"]
+      ],
+      resize_keyboard: true
+    }
   });
 }
 
