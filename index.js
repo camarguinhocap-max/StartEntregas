@@ -23,7 +23,7 @@ app.post("/", async (req, res) => {
 
     if (!isNaN(valor)) {
       // salvar no supabase
-      const response = await fetch(`${SUPABASE_URL}/rest/v1/registros`, {
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/Registros`, {
   method: "POST",
   headers: {
     "Content-Type": "application/json",
