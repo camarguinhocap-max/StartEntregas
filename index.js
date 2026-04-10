@@ -22,14 +22,13 @@ app.post("/", async (req, res) => {
 
   console.log("Mensagem:", text);
 
-  // MENU
   if (text === "/start") return sendMenu(chatId);
 
-  // ================= RESUMO =================
+  // ================= RESUMO PROFISSIONAL =================
   if (text.toLowerCase().includes("resumo")) {
     try {
       const response = await fetch(
-        SUPABASE_URL + "/rest/v1/Registros?select=Valor,Data&user_id=eq." + chatId,
+        SUPABASE_URL + "/rest/v1/Registros?select=Valor,Data,Tipo&user_id=eq." + chatId,
         {
           headers: {
             apikey: SUPABASE_KEY,
@@ -39,7 +38,6 @@ app.post("/", async (req, res) => {
       );
 
       const dados = await response.json();
-
       const hoje = new Date();
 
       const diaSemana = hoje.getDay();
@@ -59,29 +57,75 @@ app.post("/", async (req, res) => {
       const fimMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
       fimMes.setHours(23, 59, 59, 999);
 
-      let total = 0;
-      let hojeTotal = 0;
-      let semanaTotal = 0;
-      let mesTotal = 0;
+      let ganhos = 0;
+      let gastos = 0;
+
+      let ganhosHoje = 0;
+      let gastosHoje = 0;
+
+      let ganhosSemana = 0;
+      let gastosSemana = 0;
+
+      let ganhosMes = 0;
+      let gastosMes = 0;
 
       for (let i = 0; i < dados.length; i++) {
         const item = dados[i];
         const valor = Number(item.Valor || 0);
         const data = new Date(item.Data);
 
-        total += valor;
+        const isGasto = item.Tipo === "gasto";
 
-        if (data.toDateString() === hoje.toDateString()) hojeTotal += valor;
-        if (data >= inicioSemana && data <= fimSemana) semanaTotal += valor;
-        if (data >= inicioMes && data <= fimMes) mesTotal += valor;
+        // TOTAL
+        if (isGasto) gastos += valor;
+        else ganhos += valor;
+
+        // HOJE
+        if (data.toDateString() === hoje.toDateString()) {
+          if (isGasto) gastosHoje += valor;
+          else ganhosHoje += valor;
+        }
+
+        // SEMANA
+        if (data >= inicioSemana && data <= fimSemana) {
+          if (isGasto) gastosSemana += valor;
+          else ganhosSemana += valor;
+        }
+
+        // MÊS
+        if (data >= inicioMes && data <= fimMes) {
+          if (isGasto) gastosMes += valor;
+          else ganhosMes += valor;
+        }
       }
 
+      const saldo = ganhos - gastos;
+      const saldoHoje = ganhosHoje - gastosHoje;
+      const saldoSemana = ganhosSemana - gastosSemana;
+      const saldoMes = ganhosMes - gastosMes;
+
       const mensagem =
-        "📊 Resumo financeiro:\n\n" +
-        "📅 Hoje: R$ " + hojeTotal.toFixed(2) + "\n" +
-        "📆 Semana: R$ " + semanaTotal.toFixed(2) + "\n" +
-        "🗓️ Mês: R$ " + mesTotal.toFixed(2) + "\n\n" +
-        "💰 Total: R$ " + total.toFixed(2);
+        "📊 RESUMO FINANCEIRO\n\n" +
+
+        "📅 HOJE\n" +
+        "💰 Ganhos: R$ " + ganhosHoje.toFixed(2) + "\n" +
+        "💸 Gastos: R$ " + gastosHoje.toFixed(2) + "\n" +
+        "📊 Saldo: R$ " + saldoHoje.toFixed(2) + "\n\n" +
+
+        "📆 SEMANA\n" +
+        "💰 Ganhos: R$ " + ganhosSemana.toFixed(2) + "\n" +
+        "💸 Gastos: R$ " + gastosSemana.toFixed(2) + "\n" +
+        "📊 Saldo: R$ " + saldoSemana.toFixed(2) + "\n\n" +
+
+        "🗓️ MÊS\n" +
+        "💰 Ganhos: R$ " + ganhosMes.toFixed(2) + "\n" +
+        "💸 Gastos: R$ " + gastosMes.toFixed(2) + "\n" +
+        "📊 Saldo: R$ " + saldoMes.toFixed(2) + "\n\n" +
+
+        "💼 TOTAL GERAL\n" +
+        "💰 Ganhos: R$ " + ganhos.toFixed(2) + "\n" +
+        "💸 Gastos: R$ " + gastos.toFixed(2) + "\n" +
+        "📊 Saldo: R$ " + saldo.toFixed(2);
 
       return sendMessage(chatId, mensagem);
 
@@ -91,7 +135,7 @@ app.post("/", async (req, res) => {
     }
   }
 
-  // ================= REGISTRAR GASTO (NOVO) =================
+  // ================= GASTOS =================
   if (text.includes("Registrar gasto")) {
     userState[chatId] = { step: "categoria_gasto", tipo: "gasto" };
 
@@ -105,7 +149,6 @@ app.post("/", async (req, res) => {
     });
   }
 
-  // ESCOLHER CATEGORIA
   if (userState[chatId] && userState[chatId].step === "categoria_gasto") {
     let categoria = "";
 
@@ -113,9 +156,7 @@ app.post("/", async (req, res) => {
     else if (text.includes("Pró-labore")) categoria = "pro_labore";
     else if (text.includes("Outros")) categoria = "outros";
 
-    if (!categoria) {
-      return sendMessage(chatId, "Escolha uma opção válida.");
-    }
+    if (!categoria) return sendMessage(chatId, "Escolha válida.");
 
     userState[chatId].categoria = categoria;
     userState[chatId].step = "data";
@@ -129,7 +170,7 @@ app.post("/", async (req, res) => {
     });
   }
 
-  // ================= ADICIONAR GANHO =================
+  // ================= GANHO =================
   if (text.includes("Adicionar ganho")) {
     userState[chatId] = { step: "data", tipo: "ganho" };
 
@@ -142,14 +183,13 @@ app.post("/", async (req, res) => {
     });
   }
 
-  // HOJE
+  // ================= DATAS =================
   if (text.includes("Hoje") && userState[chatId]) {
     userState[chatId].data = new Date().toISOString();
     userState[chatId].step = "valor";
     return sendMessage(chatId, "Digite o valor:");
   }
 
-  // ONTEM
   if (text.includes("Ontem") && userState[chatId]) {
     const d = new Date();
     d.setDate(d.getDate() - 1);
@@ -158,22 +198,16 @@ app.post("/", async (req, res) => {
     return sendMessage(chatId, "Digite o valor:");
   }
 
-  // OUTRA DATA
   if (text.includes("Outra data") && userState[chatId]) {
     userState[chatId].step = "digitando_data";
     return sendMessage(chatId, "Digite a data (DD/MM/AAAA):");
   }
 
-  // DATA MANUAL
   if (userState[chatId] && userState[chatId].step === "digitando_data") {
     const partes = text.split("/");
     if (partes.length !== 3) return sendMessage(chatId, "Formato inválido.");
 
-    const dia = Number(partes[0]);
-    const mes = Number(partes[1]);
-    const ano = Number(partes[2]);
-
-    const data = new Date(ano, mes - 1, dia);
+    const data = new Date(partes[2], partes[1] - 1, partes[0]);
 
     userState[chatId].data = data.toISOString();
     userState[chatId].step = "valor";
@@ -181,13 +215,10 @@ app.post("/", async (req, res) => {
     return sendMessage(chatId, "Digite o valor:");
   }
 
-  // VALOR (GANHO OU GASTO)
+  // ================= VALOR =================
   if (userState[chatId] && userState[chatId].step === "valor") {
     const valor = parseFloat(text.replace(",", "."));
-
-    if (isNaN(valor)) {
-      return sendMessage(chatId, "Número inválido.");
-    }
+    if (isNaN(valor)) return sendMessage(chatId, "Número inválido.");
 
     const dados = userState[chatId];
 
@@ -224,7 +255,7 @@ app.post("/", async (req, res) => {
   }
 });
 
-// ================= FUNÇÕES =================
+// FUNÇÕES
 function sendMessage(chatId, text, keyboard) {
   return fetch("https://api.telegram.org/bot" + TOKEN + "/sendMessage", {
     method: "POST",
