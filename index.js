@@ -12,7 +12,7 @@ const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const userState = {};
 
 app.post("/", async (req, res) => {
-  res.sendStatus(200); // evita loop
+  res.sendStatus(200);
 
   const message = req.body.message;
   if (!message || !message.text) return;
@@ -25,36 +25,30 @@ app.post("/", async (req, res) => {
   // 🔹 MENU
   if (text === "/start") return sendMenu(chatId);
 
-  // 🔹 RESUMO (corrigido)
+  // 🔹 RESUMO (CORRIGIDO)
   if (text.toLowerCase().includes("resumo")) {
-  try {
-    const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/Registros?user_id=eq.${chatId.toString()}`,
-      {
-        headers: {
-          "apikey": SUPABASE_KEY,
-          "Authorization": `Bearer ${SUPABASE_KEY}`
+    try {
+      const response = await fetch(
+        `${SUPABASE_URL}/rest/v1/Registros?user_id=eq.${chatId.toString()}`,
+        {
+          headers: {
+            "apikey": SUPABASE_KEY,
+            "Authorization": `Bearer ${SUPABASE_KEY}`
+          }
         }
-      }
-    );
+      );
 
-    const dados = await response.json();
+      const dados = await response.json();
 
-    console.log("DADOS RESUMO:", dados); // 👈 DEBUG
+      console.log("DADOS RESUMO:", dados);
 
-    let total = 0;
+      let total = 0;
 
-    dados.forEach(item => {
-      total += Number(item.Valor);
-    });
+      dados.forEach(item => {
+        total += Number(item.Valor);
+      });
 
-    return sendMessage(chatId, `📊 Total acumulado: R$${total}`);
-
-  } catch (error) {
-    console.log(error);
-    return sendMessage(chatId, "Erro ao buscar dados.");
-  }
-}
+      return sendMessage(chatId, `📊 Total acumulado: R$ ${total.toFixed(2)}`);
 
     } catch (error) {
       console.log(error);
@@ -97,7 +91,7 @@ app.post("/", async (req, res) => {
     return sendMessage(chatId, "Digite a data (DD/MM/AAAA):");
   }
 
-  // 🔹 DATA MANUAL (BR)
+  // 🔹 DATA MANUAL
   if (userState[chatId]?.step === "digitando_data") {
     const regex = /^\d{2}\/\d{2}\/\d{4}$/;
 
@@ -153,7 +147,7 @@ app.post("/", async (req, res) => {
 
     delete userState[chatId];
 
-    return sendMessage(chatId, `✅ Registrado: R$${valor}`, {
+    return sendMessage(chatId, `✅ Registrado: R$ ${valor}`, {
       keyboard: [
         ["➕ Adicionar ganho"],
         ["💸 Registrar gasto"],
