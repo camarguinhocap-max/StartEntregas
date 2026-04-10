@@ -3,11 +3,11 @@ const app = express();
 
 app.use(express.json());
 
-const TOKEN = "SEU_TOKEN_AQUI";
+const TOKEN = "8613535785:AAFPfKjg94JavGcU7-WznFRotjHEAGBdVaQ";
 
 // 👇 CONFIG SUPABASE
-const SUPABASE_URL = "SUA_URL_AQUI";
-const SUPABASE_KEY = "SUA_ANON_KEY_AQUI";
+const SUPABASE_URL = "https://wvqrpliefwtmbswbbjnt.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind2cXJwbGllZnd0bWJzd2Jiam50Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MDAxNTUsImV4cCI6MjA5MTM3NjE1NX0.E8vzsrpWYNKfrYXtn2DFo7m7ZS0__Weo6TcQOa9AbHw";
 
 app.post("/", async (req, res) => {
   const message = req.body.message;
