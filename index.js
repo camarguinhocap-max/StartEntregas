@@ -108,19 +108,14 @@ app.post("/", async (req, res) => {
   }
 }
 
-    return sendMessage(
-      chatId,
-      `📊 *Resumo financeiro:*
+    const mensagem =
+  "📊 Resumo financeiro:\n\n" +
+  "📅 Hoje: R$ " + hojeTotal.toFixed(2) + "\n" +
+  "📆 Semana: R$ " + semanaTotal.toFixed(2) + "\n" +
+  "🗓️ Mês: R$ " + mesTotal.toFixed(2) + "\n\n" +
+  "💰 Total: R$ " + total.toFixed(2);
 
-📅 Hoje: R$ ${hojeTotal.toFixed(2)}
-📆 Semana: R$ ${semanaTotal.toFixed(2)}
-🗓️ Mês: R$ ${mesTotal.toFixed(2)}
-
-💰 Total: R$ ${total.toFixed(2)}`,
-      {
-        parse_mode: "Markdown"
-      }
-    );
+return sendMessage(chatId, mensagem);
 
   } catch (error) {
     console.log(error);
