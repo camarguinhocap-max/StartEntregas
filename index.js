@@ -443,7 +443,7 @@ function sendMenu(chatId) {
   ["➕ Adicionar ganho", "💸 Registrar gasto"],
   ["📊 Ver resumo", "💡 Sugerir melhoria"],
   ["🚀 Indicar e ganhar"]
-]
+],
     resize_keyboard: true
   });
 }
