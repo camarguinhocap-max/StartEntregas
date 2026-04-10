@@ -20,7 +20,28 @@ app.post("/", async (req, res) => {
 
     // verifica se é número
     const valor = parseFloat(text);
+if (text === "/start") {
+  await fetch(`https://api.telegram.org/bot${TOKEN}/sendMessage`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      chat_id: chatId,
+      text: "Escolha uma opção:",
+      reply_markup: {
+        keyboard: [
+          ["➕ Adicionar ganho"],
+          ["💸 Registrar gasto"],
+          ["📊 Ver resumo"]
+        ],
+        resize_keyboard: true
+      }
+    }),
+  });
 
+  return res.sendStatus(200);
+}
     if (!isNaN(valor)) {
       // salvar no supabase
       const response = await fetch(`${SUPABASE_URL}/rest/v1/Registros`, {
