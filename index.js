@@ -127,6 +127,10 @@ app.post("/", async (req, res) => {
         "💸 Gastos: R$ " + gastos.toFixed(2) + "\n" +
         "📊 Saldo: R$ " + saldo.toFixed(2);
 
+const link = "https://v0-startentregras.vercel.app/?user_id=" + chatId;
+
+mensagem += "\n\n📊 Ver dashboard completo:\n" + link;
+      
       return sendMessage(chatId, mensagem);
 
     } catch (error) {
