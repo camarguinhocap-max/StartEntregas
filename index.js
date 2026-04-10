@@ -269,24 +269,3 @@ function sendMenu(chatId) {
 app.listen(3000, () => {
   console.log("Servidor rodando 🚀");
 });
-💥 O QUE VOCÊ GANHOU AGORA
-✅ Digitar:
-2 → vira dia atual do mês
-cento e vinte → vira 120
-✅ Gasto automático:
-“gasolina” → combustível
-“ifood” → alimentação
-“uber” → transporte
-⚠️ OBSERVAÇÃO IMPORTANTE
-
-👉 A categoria usa o texto do valor
-Se quiser melhorar depois:
-
-pedir descrição separada
-ou usar IA real (fica absurdo de bom)
-
-Se quiser o próximo nível:
-
-👉 “gastei 50 no ifood ontem” (tudo automático)
-
-fala: quero IA completa 🚀
