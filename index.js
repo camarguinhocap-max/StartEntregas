@@ -3,7 +3,11 @@ const app = express();
 
 app.use(express.json());
 
-const TOKEN = "8613535785:AAFPfKjg94JavGcU7-WznFRotjHEAGBdVaQ";
+const TOKEN = "SEU_TOKEN_AQUI";
+
+// 👇 CONFIG SUPABASE
+const SUPABASE_URL = "SUA_URL_AQUI";
+const SUPABASE_KEY = "SUA_ANON_KEY_AQUI";
 
 app.post("/", async (req, res) => {
   const message = req.body.message;
@@ -14,20 +18,37 @@ app.post("/", async (req, res) => {
 
     console.log("Mensagem recebida:", text);
 
-    // resposta simples
-    const resposta = `✅ Registrado: R$${text}`;
+    // verifica se é número
+    const valor = parseFloat(text);
 
-    // enviar resposta para o Telegram
-    await fetch(`https://api.telegram.org/bot${TOKEN}/sendMessage`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text: resposta,
-      }),
-    });
+    if (!isNaN(valor)) {
+      // salvar no supabase
+      await fetch(`${SUPABASE_URL}/rest/v1/registros`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": SUPABASE_KEY,
+          "Authorization": `Bearer ${SUPABASE_KEY}`
+        },
+        body: JSON.stringify({
+          user_id: chatId.toString(),
+          tipo: "ganho",
+          valor: valor
+        })
+      });
+
+      // resposta
+      await fetch(`https://api.telegram.org/bot${TOKEN}/sendMessage`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: `✅ Registrado: R$${valor}`,
+        }),
+      });
+    }
   }
 
   res.sendStatus(200);
