@@ -3,7 +3,7 @@ const app = express();
 
 app.use(express.json());
 
-const TOKEN = "SEU_TOKEN_AQUI";
+const TOKEN = "8613535785:AAFPfKjg94JavGcU7-WznFRotjHEAGBdVaQ";
 
 app.post("/", async (req, res) => {
   const message = req.body.message;
