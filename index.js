@@ -162,7 +162,7 @@ if (user) {
     return sendMessage(chatId, "💡 Digite sua sugestão:");
   }
   if (text.includes("Indicar")) {
-  const link = `https://t.me/SEU_BOT?start=${chatId}`;
+  const link = `https://t.me/startentregas_bot?start=${chatId}`;
 
   return sendMessage(chatId,
 `🚀 Indique e ganhe 1 mês grátis!
