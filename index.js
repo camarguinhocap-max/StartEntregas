@@ -114,7 +114,35 @@ app.post("/", async (req, res) => {
     } catch (e) {
       console.log("Erro:", e);
     }
+      if (text === "📊 Ver resumo") {
+  try {
+    const response = await fetch(
+      `${SUPABASE_URL}/rest/v1/Registros?user_id=eq.${chatId}`,
+      {
+        headers: {
+          "apikey": SUPABASE_KEY,
+          "Authorization": `Bearer ${SUPABASE_KEY}`
+        }
+      }
+    );
 
+    const dados = await response.json();
+
+    let total = 0;
+
+    dados.forEach(item => {
+      total += Number(item.Valor);
+    });
+
+    await sendMessage(chatId, `📊 Total acumulado: R$${total}`);
+
+  } catch (error) {
+    console.log(error);
+    await sendMessage(chatId, "Erro ao buscar dados.");
+  }
+
+  return; // 🔥 IMPORTANTE (evita conflito com outros fluxos)
+}
     delete userState[chatId];
 
     return sendMessage(chatId, `✅ Registrado: R$${valor}`, {
