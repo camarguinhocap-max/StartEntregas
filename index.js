@@ -27,41 +27,70 @@ app.post("/", async (req, res) => {
 
   // 🔹 RESUMO (100% corrigido)
   if (text.toLowerCase().includes("resumo")) {
-    try {
-      const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/Registros?select=Valor,user_id&user_id=eq.${chatId}`,
-        {
-          headers: {
-            "apikey": SUPABASE_KEY,
-            "Authorization": `Bearer ${SUPABASE_KEY}`
-          }
+  try {
+    const response = await fetch(
+      `${SUPABASE_URL}/rest/v1/Registros?select=Valor,Data&user_id=eq.${chatId}`,
+      {
+        headers: {
+          "apikey": SUPABASE_KEY,
+          "Authorization": `Bearer ${SUPABASE_KEY}`
         }
-      );
+      }
+    );
 
-      const dados = await response.json();
+    const dados = await response.json();
 
-      console.log("CHAT ID:", chatId);
-      console.log("DADOS DO BANCO:", dados);
+    const hoje = new Date();
+    let total = 0;
+    let hojeTotal = 0;
+    let semanaTotal = 0;
+    let mesTotal = 0;
 
-      if (!Array.isArray(dados) || dados.length === 0) {
-        return sendMessage(chatId, "📊 Total acumulado: R$ 0.00");
+    dados.forEach(item => {
+      const valor = Number(item.Valor || 0);
+      const data = new Date(item.Data);
+
+      total += valor;
+
+      // HOJE
+      if (data.toDateString() === hoje.toDateString()) {
+        hojeTotal += valor;
       }
 
-      let total = 0;
+      // SEMANA
+      const diffDias = (hoje - data) / (1000 * 60 * 60 * 24);
+      if (diffDias <= 7) {
+        semanaTotal += valor;
+      }
 
-      dados.forEach(item => {
-        const valor = Number(item.Valor || 0);
-        total += valor;
-      });
+      // MÊS
+      if (
+        data.getMonth() === hoje.getMonth() &&
+        data.getFullYear() === hoje.getFullYear()
+      ) {
+        mesTotal += valor;
+      }
+    });
 
-      return sendMessage(chatId, `📊 Total acumulado: R$ ${total.toFixed(2)}`);
+    return sendMessage(
+      chatId,
+      `📊 *Resumo financeiro:*
 
-    } catch (error) {
-      console.log("ERRO RESUMO:", error);
-      return sendMessage(chatId, "Erro ao buscar dados.");
-    }
+📅 Hoje: R$ ${hojeTotal.toFixed(2)}
+📆 Semana: R$ ${semanaTotal.toFixed(2)}
+🗓️ Mês: R$ ${mesTotal.toFixed(2)}
+
+💰 Total: R$ ${total.toFixed(2)}`,
+      {
+        parse_mode: "Markdown"
+      }
+    );
+
+  } catch (error) {
+    console.log(error);
+    return sendMessage(chatId, "Erro ao buscar dados.");
   }
-
+}
   // 🔹 INICIO GANHO
   if (text.includes("Adicionar ganho")) {
     userState[chatId] = { step: "data", tipo: "ganho" };
