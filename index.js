@@ -23,19 +23,22 @@ app.post("/", async (req, res) => {
 
     if (!isNaN(valor)) {
       // salvar no supabase
-      await fetch(`${SUPABASE_URL}/rest/v1/registros`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "apikey": SUPABASE_KEY,
-          "Authorization": `Bearer ${SUPABASE_KEY}`
-        },
-        body: JSON.stringify({
-          user_id: chatId.toString(),
-          tipo: "ganho",
-          valor: valor
-        })
-      });
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/registros`, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "apikey": SUPABASE_KEY,
+    "Authorization": `Bearer ${SUPABASE_KEY}`
+  },
+  body: JSON.stringify({
+    user_id: chatId.toString(),
+    tipo: "ganho",
+    valor: valor
+  })
+});
+
+const data = await response.text();
+console.log("SUPABASE RESPONSE:", data);
 
       // resposta
       await fetch(`https://api.telegram.org/bot${TOKEN}/sendMessage`, {
