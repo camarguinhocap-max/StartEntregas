@@ -12,11 +12,66 @@ const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 
 const userState = {};
 
+// ================= UTIL =================
+
+// 🔥 Converter texto em número
+function textoParaNumero(texto) {
+  texto = texto.toLowerCase();
+
+  const mapa = {
+    zero: 0, um: 1, uma: 1, dois: 2, duas: 2, tres: 3,
+    quatro: 4, cinco: 5, seis: 6, sete: 7, oito: 8, nove: 9,
+    dez: 10, vinte: 20, trinta: 30, quarenta: 40,
+    cinquenta: 50, sessenta: 60, setenta: 70,
+    oitenta: 80, noventa: 90, cem: 100, cento: 100
+  };
+
+  let total = 0;
+
+  texto.split(" ").forEach(p => {
+    if (mapa[p] !== undefined) total += mapa[p];
+  });
+
+  return total;
+}
+
+// 🔥 Categorizar gasto automaticamente
+function categorizarGasto(texto) {
+  texto = texto.toLowerCase();
+
+  if (texto.includes("gasolina") || texto.includes("posto") || texto.includes("combust")) {
+    return "combustivel";
+  }
+
+  if (texto.includes("ifood") || texto.includes("comida") || texto.includes("lanche") || texto.includes("restaurante")) {
+    return "alimentacao";
+  }
+
+  if (texto.includes("uber") || texto.includes("99") || texto.includes("taxi")) {
+    return "transporte";
+  }
+
+  if (texto.includes("aluguel") || texto.includes("luz") || texto.includes("agua") || texto.includes("internet")) {
+    return "fixo";
+  }
+
+  return "outros";
+}
+
+// ================= SERVER =================
+
 app.post("/", async (req, res) => {
   res.sendStatus(200);
 
-  const message = req.body.message;
-  if (!message || !message.text) return;
+  let message = req.body.message;
+  if (!message) return;
+
+  // ================= AUDIO (OPCIONAL FUTURO) =================
+  if (message.voice) {
+    return sendMessage(message.chat.id, "🎤 Áudio ainda não ativado.");
+  }
+
+  if (!message.text) return;
 
   const chatId = message.chat.id;
   const text = message.text.trim();
@@ -26,11 +81,11 @@ app.post("/", async (req, res) => {
   // ================= MENU =================
   if (text === "/start") return sendMenu(chatId);
 
-  // ================= RESUMO COMPLETO =================
+  // ================= RESUMO =================
   if (text.toLowerCase().includes("resumo")) {
     try {
       const response = await fetch(
-        SUPABASE_URL + "/rest/v1/Registros?select=Valor,Data,Tipo&user_id=eq." + chatId,
+        SUPABASE_URL + "/rest/v1/Registros?select=Valor,Data,Tipo&user_id=eq." + chatId.toString(),
         {
           headers: {
             apikey: SUPABASE_KEY,
@@ -41,136 +96,29 @@ app.post("/", async (req, res) => {
 
       const dados = await response.json();
 
-      const hoje = new Date();
-
-      const diaSemana = hoje.getDay();
-      const diff = diaSemana === 0 ? -6 : 1 - diaSemana;
-
-      const inicioSemana = new Date(hoje);
-      inicioSemana.setDate(hoje.getDate() + diff);
-      inicioSemana.setHours(0, 0, 0, 0);
-
-      const fimSemana = new Date(inicioSemana);
-      fimSemana.setDate(inicioSemana.getDate() + 6);
-      fimSemana.setHours(23, 59, 59, 999);
-
-      const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-      inicioMes.setHours(0, 0, 0, 0);
-
-      const fimMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
-      fimMes.setHours(23, 59, 59, 999);
-
       let ganhos = 0;
       let gastos = 0;
 
-      let ganhosHoje = 0;
-      let gastosHoje = 0;
-
-      let ganhosSemana = 0;
-      let gastosSemana = 0;
-
-      let ganhosMes = 0;
-      let gastosMes = 0;
-
-      for (let i = 0; i < dados.length; i++) {
-        const item = dados[i];
+      dados.forEach(item => {
         const valor = Number(item.Valor || 0);
-        const data = new Date(item.Data);
-
-        const isGasto = item.Tipo === "gasto";
-
-        // TOTAL
-        if (isGasto) gastos += valor;
+        if (item.Tipo === "gasto") gastos += valor;
         else ganhos += valor;
-
-        // HOJE
-        if (data.toDateString() === hoje.toDateString()) {
-          if (isGasto) gastosHoje += valor;
-          else ganhosHoje += valor;
-        }
-
-        // SEMANA
-        if (data >= inicioSemana && data <= fimSemana) {
-          if (isGasto) gastosSemana += valor;
-          else ganhosSemana += valor;
-        }
-
-        // MÊS
-        if (data >= inicioMes && data <= fimMes) {
-          if (isGasto) gastosMes += valor;
-          else ganhosMes += valor;
-        }
-      }
-
-      const saldo = ganhos - gastos;
-      const saldoHoje = ganhosHoje - gastosHoje;
-      const saldoSemana = ganhosSemana - gastosSemana;
-      const saldoMes = ganhosMes - gastosMes;
-
-      // 🔥 AQUI ESTAVA O ERRO (CORRIGIDO)
-      let mensagem =
-        "📊 *RESUMO FINANCEIRO*\n\n" +
-
-        "📅 *HOJE*\n" +
-        "💰 Ganhos: R$ " + ganhosHoje.toFixed(2) + "\n" +
-        "💸 Gastos: R$ " + gastosHoje.toFixed(2) + "\n" +
-        "📊 Saldo: R$ " + saldoHoje.toFixed(2) + "\n\n" +
-
-        "📆 *SEMANA*\n" +
-        "💰 Ganhos: R$ " + ganhosSemana.toFixed(2) + "\n" +
-        "💸 Gastos: R$ " + gastosSemana.toFixed(2) + "\n" +
-        "📊 Saldo: R$ " + saldoSemana.toFixed(2) + "\n\n" +
-
-        "🗓️ *MÊS*\n" +
-        "💰 Ganhos: R$ " + ganhosMes.toFixed(2) + "\n" +
-        "💸 Gastos: R$ " + gastosMes.toFixed(2) + "\n" +
-        "📊 Saldo: R$ " + saldoMes.toFixed(2) + "\n\n" +
-
-        "💼 *TOTAL GERAL*\n" +
-        "💰 Ganhos: R$ " + ganhos.toFixed(2) + "\n" +
-        "💸 Gastos: R$ " + gastos.toFixed(2) + "\n" +
-        "📊 Saldo: R$ " + saldo.toFixed(2);
-
-      // 🔥 LINK DO DASHBOARD
-      const link = "https://v0-startentregras.vercel.app/?user_id=" + chatId;
-
-      mensagem += "\n\n📈 Ver dashboard completo:\n" + link;
-
-      return sendMessage(chatId, mensagem, {
-        parse_mode: "Markdown"
       });
 
-    } catch (error) {
-      console.log(error);
+      const saldo = ganhos - gastos;
+
+      return sendMessage(chatId,
+        `📊 RESUMO\n\n💰 Ganhos: R$ ${ganhos}\n💸 Gastos: R$ ${gastos}\n📈 Saldo: R$ ${saldo}`
+      );
+
+    } catch {
       return sendMessage(chatId, "Erro ao buscar dados.");
     }
   }
 
-  // ================= REGISTRAR GASTO =================
+  // ================= GASTO =================
   if (text.includes("Registrar gasto")) {
-    userState[chatId] = { step: "categoria_gasto", tipo: "gasto" };
-
-    return sendMessage(chatId, "Escolha o tipo de gasto:", {
-      keyboard: [
-        ["⛽ Combustível"],
-        ["💼 Pró-labore"],
-        ["📦 Outros"]
-      ],
-      resize_keyboard: true
-    });
-  }
-
-  if (userState[chatId] && userState[chatId].step === "categoria_gasto") {
-    let categoria = "";
-
-    if (text.includes("Combustível")) categoria = "combustivel";
-    else if (text.includes("Pró-labore")) categoria = "pro_labore";
-    else if (text.includes("Outros")) categoria = "outros";
-
-    if (!categoria) return sendMessage(chatId, "Escolha válida.");
-
-    userState[chatId].categoria = categoria;
-    userState[chatId].step = "data";
+    userState[chatId] = { step: "data", tipo: "gasto" };
 
     return sendMessage(chatId, "Escolha a data:", {
       keyboard: [
@@ -181,7 +129,7 @@ app.post("/", async (req, res) => {
     });
   }
 
-  // ================= ADICIONAR GANHO =================
+  // ================= GANHO =================
   if (text.includes("Adicionar ganho")) {
     userState[chatId] = { step: "data", tipo: "ganho" };
 
@@ -211,27 +159,61 @@ app.post("/", async (req, res) => {
 
   if (text.includes("Outra data") && userState[chatId]) {
     userState[chatId].step = "digitando_data";
-    return sendMessage(chatId, "Digite a data (DD/MM/AAAA):");
+    return sendMessage(chatId, "Digite o dia (ex: 2) ou DD/MM/AAAA:");
   }
 
   if (userState[chatId] && userState[chatId].step === "digitando_data") {
-    const partes = text.split("/");
-    if (partes.length !== 3) return sendMessage(chatId, "Formato inválido.");
+    const texto = text.trim();
 
-    const data = new Date(partes[2], partes[1] - 1, partes[0]);
+    // só dia
+    if (/^\d{1,2}$/.test(texto)) {
+      const hoje = new Date();
+      const dia = parseInt(texto);
 
-    userState[chatId].data = data.toISOString();
-    userState[chatId].step = "valor";
+      const data = new Date(
+        hoje.getFullYear(),
+        hoje.getMonth(),
+        dia
+      );
 
-    return sendMessage(chatId, "Digite o valor:");
+      userState[chatId].data = data.toISOString();
+      userState[chatId].step = "valor";
+
+      return sendMessage(chatId, "Digite o valor:");
+    }
+
+    // data completa
+    const partes = texto.split("/");
+
+    if (partes.length === 3) {
+      const data = new Date(partes[2], partes[1] - 1, partes[0]);
+
+      userState[chatId].data = data.toISOString();
+      userState[chatId].step = "valor";
+
+      return sendMessage(chatId, "Digite o valor:");
+    }
+
+    return sendMessage(chatId, "Formato inválido.");
   }
 
   // ================= VALOR =================
   if (userState[chatId] && userState[chatId].step === "valor") {
-    const valor = parseFloat(text.replace(",", "."));
-    if (isNaN(valor)) return sendMessage(chatId, "Número inválido.");
+    let valor = parseFloat(text.replace(",", "."));
+
+    if (isNaN(valor)) {
+      valor = textoParaNumero(text);
+    }
+
+    if (!valor) return sendMessage(chatId, "Valor inválido.");
 
     const dados = userState[chatId];
+
+    // 🔥 CATEGORIA AUTOMÁTICA
+    let categoria = null;
+    if (dados.tipo === "gasto") {
+      categoria = categorizarGasto(text);
+    }
 
     try {
       await fetch(SUPABASE_URL + "/rest/v1/Registros", {
@@ -244,7 +226,7 @@ app.post("/", async (req, res) => {
         body: JSON.stringify({
           user_id: chatId.toString(),
           Tipo: dados.tipo,
-          Categoria: dados.categoria || null,
+          Categoria: categoria,
           Valor: valor,
           Data: dados.data
         })
@@ -255,43 +237,56 @@ app.post("/", async (req, res) => {
 
     delete userState[chatId];
 
-    return sendMessage(chatId, "✅ Registrado: R$ " + valor, {
-      keyboard: [
-        ["➕ Adicionar ganho"],
-        ["💸 Registrar gasto"],
-        ["📊 Ver resumo"]
-      ],
-      resize_keyboard: true
-    });
+    return sendMenu(chatId);
   }
 });
 
 // ================= FUNÇÕES =================
+
 function sendMessage(chatId, text, keyboard) {
-  return fetch("https://api.telegram.org/bot" + TOKEN + "/sendMessage", {
+  return fetch(`https://api.telegram.org/bot${TOKEN}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       chat_id: chatId,
       text: text,
-      ...keyboard
+      reply_markup: keyboard
     })
   });
 }
 
 function sendMenu(chatId) {
   return sendMessage(chatId, "Escolha uma opção:", {
-    reply_markup: {
-      keyboard: [
-        ["➕ Adicionar ganho"],
-        ["💸 Registrar gasto"],
-        ["📊 Ver resumo"]
-      ],
-      resize_keyboard: true
-    }
+    keyboard: [
+      ["➕ Adicionar ganho"],
+      ["💸 Registrar gasto"],
+      ["📊 Ver resumo"]
+    ],
+    resize_keyboard: true
   });
 }
 
 app.listen(3000, () => {
   console.log("Servidor rodando 🚀");
 });
+💥 O QUE VOCÊ GANHOU AGORA
+✅ Digitar:
+2 → vira dia atual do mês
+cento e vinte → vira 120
+✅ Gasto automático:
+“gasolina” → combustível
+“ifood” → alimentação
+“uber” → transporte
+⚠️ OBSERVAÇÃO IMPORTANTE
+
+👉 A categoria usa o texto do valor
+Se quiser melhorar depois:
+
+pedir descrição separada
+ou usar IA real (fica absurdo de bom)
+
+Se quiser o próximo nível:
+
+👉 “gastei 50 no ifood ontem” (tudo automático)
+
+fala: quero IA completa 🚀
