@@ -42,7 +42,6 @@ app.post("/", async (req, res) => {
 
       const hoje = new Date();
 
-      // INICIO SEMANA (segunda)
       const diaSemana = hoje.getDay();
       const diff = diaSemana === 0 ? -6 : 1 - diaSemana;
 
@@ -54,7 +53,6 @@ app.post("/", async (req, res) => {
       fimSemana.setDate(inicioSemana.getDate() + 6);
       fimSemana.setHours(23, 59, 59, 999);
 
-      // INICIO / FIM MÊS
       const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
       inicioMes.setHours(0, 0, 0, 0);
 
@@ -68,26 +66,14 @@ app.post("/", async (req, res) => {
 
       for (let i = 0; i < dados.length; i++) {
         const item = dados[i];
-
         const valor = Number(item.Valor || 0);
         const data = new Date(item.Data);
 
         total += valor;
 
-        // HOJE
-        if (data.toDateString() === hoje.toDateString()) {
-          hojeTotal += valor;
-        }
-
-        // SEMANA
-        if (data >= inicioSemana && data <= fimSemana) {
-          semanaTotal += valor;
-        }
-
-        // MÊS
-        if (data >= inicioMes && data <= fimMes) {
-          mesTotal += valor;
-        }
+        if (data.toDateString() === hoje.toDateString()) hojeTotal += valor;
+        if (data >= inicioSemana && data <= fimSemana) semanaTotal += valor;
+        if (data >= inicioMes && data <= fimMes) mesTotal += valor;
       }
 
       const mensagem =
@@ -100,9 +86,47 @@ app.post("/", async (req, res) => {
       return sendMessage(chatId, mensagem);
 
     } catch (error) {
-      console.log("ERRO RESUMO:", error);
+      console.log(error);
       return sendMessage(chatId, "Erro ao buscar dados.");
     }
+  }
+
+  // ================= REGISTRAR GASTO (NOVO) =================
+  if (text.includes("Registrar gasto")) {
+    userState[chatId] = { step: "categoria_gasto", tipo: "gasto" };
+
+    return sendMessage(chatId, "Escolha o tipo de gasto:", {
+      keyboard: [
+        ["⛽ Combustível"],
+        ["💼 Pró-labore"],
+        ["📦 Outros"]
+      ],
+      resize_keyboard: true
+    });
+  }
+
+  // ESCOLHER CATEGORIA
+  if (userState[chatId] && userState[chatId].step === "categoria_gasto") {
+    let categoria = "";
+
+    if (text.includes("Combustível")) categoria = "combustivel";
+    else if (text.includes("Pró-labore")) categoria = "pro_labore";
+    else if (text.includes("Outros")) categoria = "outros";
+
+    if (!categoria) {
+      return sendMessage(chatId, "Escolha uma opção válida.");
+    }
+
+    userState[chatId].categoria = categoria;
+    userState[chatId].step = "data";
+
+    return sendMessage(chatId, "Escolha a data:", {
+      keyboard: [
+        ["📅 Hoje", "📅 Ontem"],
+        ["📅 Outra data"]
+      ],
+      resize_keyboard: true
+    });
   }
 
   // ================= ADICIONAR GANHO =================
@@ -142,13 +166,9 @@ app.post("/", async (req, res) => {
 
   // DATA MANUAL
   if (userState[chatId] && userState[chatId].step === "digitando_data") {
-    const regex = /^\d{2}\/\d{2}\/\d{4}$/;
-
-    if (!regex.test(text)) {
-      return sendMessage(chatId, "Formato inválido.");
-    }
-
     const partes = text.split("/");
+    if (partes.length !== 3) return sendMessage(chatId, "Formato inválido.");
+
     const dia = Number(partes[0]);
     const mes = Number(partes[1]);
     const ano = Number(partes[2]);
@@ -161,7 +181,7 @@ app.post("/", async (req, res) => {
     return sendMessage(chatId, "Digite o valor:");
   }
 
-  // VALOR
+  // VALOR (GANHO OU GASTO)
   if (userState[chatId] && userState[chatId].step === "valor") {
     const valor = parseFloat(text.replace(",", "."));
 
@@ -182,12 +202,13 @@ app.post("/", async (req, res) => {
         body: JSON.stringify({
           user_id: chatId.toString(),
           Tipo: dados.tipo,
+          Categoria: dados.categoria || null,
           Valor: valor,
           Data: dados.data
         })
       });
     } catch (e) {
-      console.log("Erro ao salvar:", e);
+      console.log(e);
     }
 
     delete userState[chatId];
@@ -203,7 +224,7 @@ app.post("/", async (req, res) => {
   }
 });
 
-// FUNÇÕES
+// ================= FUNÇÕES =================
 function sendMessage(chatId, text, keyboard) {
   return fetch("https://api.telegram.org/bot" + TOKEN + "/sendMessage", {
     method: "POST",
