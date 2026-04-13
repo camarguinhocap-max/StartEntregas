@@ -326,7 +326,7 @@ app.post("/", async (req, res) => {
   }
 
   // ================= VER RESUMO =================
-  if (text === "📊 Ver resumo") {
+  if (text.includes("Ver resumo")) {
     try {
       const response = await fetch(
         SUPABASE_URL + "/rest/v1/Registros?select=Valor,Data,Tipo,Categoria&user_id=eq." + chatId.toString(),
