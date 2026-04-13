@@ -122,6 +122,10 @@ if (!message) return;
   
   const chatId = message.chat.id;
 const text = message.text ? message.text.trim() : "";
+
+  // ================= COMPROVANTE =================
+if (message.photo && userState[chatId] && userState[chatId].step === "comprovante") {
+
   
   // ================= VALIDA ACESSO =================
 let user;
@@ -469,8 +473,6 @@ ${link}`
 
     return sendMessage(chatId, "✅ Sugestão enviada!");
   }
-// ================= COMPROVANTE =================
-if (message.photo && userState[chatId] && userState[chatId].step === "comprovante") {
 
   const fileId = message.photo[message.photo.length - 1].file_id;
 
