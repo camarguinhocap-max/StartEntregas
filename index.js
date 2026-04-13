@@ -45,6 +45,16 @@ function categorizarGasto(texto) {
   return "outros";
 }
 
+
+// ================= DATA BRASIL =================
+// Retorna data no formato YYYY-MM-DD no fuso de Brasília (UTC-3)
+function dataBrasil(date) {
+  const d = date || new Date();
+  const offset = -3 * 60; // UTC-3 em minutos
+  const local = new Date(d.getTime() + offset * 60 * 1000);
+  return local.toISOString().substring(0, 10);
+}
+
 // ================= SUPABASE HELPERS =================
 
 async function getUsuario(chatId) {
@@ -486,7 +496,7 @@ app.post("/", async (req, res) => {
 
   // ================= DATAS =================
   if (text.includes("Hoje") && userState[chatId]) {
-    userState[chatId].data = new Date().toISOString();
+    userState[chatId].data = dataBrasil(new Date());
     userState[chatId].step = "valor";
     return sendMessage(chatId, "Digite o valor (ex: 35,90):", {
       keyboard: [["❌ Cancelar"]],
@@ -497,7 +507,7 @@ app.post("/", async (req, res) => {
   if (text.includes("Ontem") && userState[chatId]) {
     const d = new Date();
     d.setDate(d.getDate() - 1);
-    userState[chatId].data = d.toISOString();
+    userState[chatId].data = dataBrasil(d);
     userState[chatId].step = "valor";
     return sendMessage(chatId, "Digite o valor (ex: 35,90):", {
       keyboard: [["❌ Cancelar"]],
@@ -525,7 +535,7 @@ app.post("/", async (req, res) => {
       const hoje = new Date();
       const dia = parseInt(texto);
       const data = new Date(hoje.getFullYear(), hoje.getMonth(), dia);
-      userState[chatId].data = data.toISOString();
+      userState[chatId].data = dataBrasil(data);
       userState[chatId].step = "valor";
       return sendMessage(chatId, "Digite o valor (ex: 35,90):", {
         keyboard: [["❌ Cancelar"]],
@@ -536,7 +546,7 @@ app.post("/", async (req, res) => {
     const partes = texto.split("/");
     if (partes.length === 3) {
       const data = new Date(partes[2], partes[1] - 1, partes[0]);
-      userState[chatId].data = data.toISOString();
+      userState[chatId].data = dataBrasil(data);
       userState[chatId].step = "valor";
       return sendMessage(chatId, "Digite o valor (ex: 35,90):", {
         keyboard: [["❌ Cancelar"]],
