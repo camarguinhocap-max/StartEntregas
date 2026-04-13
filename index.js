@@ -52,7 +52,7 @@ function categorizarGasto(texto) {
 app.post("/", async (req, res) => {
   res.sendStatus(200);
 
-  const message = req.body.message;
+const message = req.body.message;
 const callback = req.body.callback_query;
 
 // 👉 trata callback primeiro
@@ -62,9 +62,6 @@ if (callback) {
 }
 
 // 👉 só depois valida mensagem
-if (!message || !message.text) return;
-}
-
 if (!message || !message.text) return;
 
   const chatId = message.chat.id;
