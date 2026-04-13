@@ -327,6 +327,7 @@ app.post("/", async (req, res) => {
   }
 
   // ================= VER RESUMO =================
+  console.log("Chegou no handler Ver resumo?", text.includes("Ver resumo"));
   if (text.includes("Ver resumo")) {
     try {
       const response = await fetch(
