@@ -173,10 +173,10 @@ if (user) {
     })
   });
 
-  return sendMessage(chatId,
-`📩 Recebemos sua solicitação!
+  userState[chatId] = { step: "comprovante" };
 
-Aguarde aprovação.`);
+return sendMessage(chatId,
+`📸 Envie o comprovante do pagamento (print do PIX).`);
 }
 
   return sendMessage(chatId,
