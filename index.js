@@ -121,8 +121,8 @@ if (callback) {
 if (!message) return;
   
   const chatId = message.chat.id;
-  const text = message.text.trim();
-
+const text = message.text ? message.text.trim() : "";
+  
   // ================= VALIDA ACESSO =================
 let user;
 
