@@ -156,22 +156,7 @@ if (user) {
   // 👉 se clicou já paguei
   if (text.includes("Já paguei")) {
 
-  await fetch(`https://api.telegram.org/bot${TOKEN}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: ADMIN_ID,
-      text: `💰 NOVO PAGAMENTO\n\n👤 Usuário: ${chatId}`,
-      reply_markup: {
-        inline_keyboard: [
-          [
-            { text: "✅ Aprovar", callback_data: `aprovar_${chatId}` },
-            { text: "❌ Recusar", callback_data: `recusar_${chatId}` }
-          ]
-        ]
-      }
-    })
-  });
+  
 
   userState[chatId] = { step: "comprovante" };
 
@@ -514,10 +499,7 @@ if (message.photo && userState[chatId] && userState[chatId].step === "comprovant
 
   return sendMessage(chatId, "📸 Comprovante enviado para análise!");
 }
-  console.log("📸 Foto recebida de:", chatId);
-
-  return sendMessage(chatId, "📸 Comprovante recebido!");
-}
+  
   // ================= VALOR =================
   if (userState[chatId] && userState[chatId].step === "valor") {
     let valor = parseFloat(text.replace(",", "."));
