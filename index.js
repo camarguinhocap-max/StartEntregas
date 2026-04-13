@@ -484,7 +484,13 @@ ${link}`
 
     return sendMessage(chatId, "✅ Sugestão enviada!");
   }
+// ================= COMPROVANTE =================
+if (message.photo && userState[chatId] && userState[chatId].step === "comprovante") {
 
+  console.log("📸 Foto recebida de:", chatId);
+
+  return sendMessage(chatId, "📸 Comprovante recebido!");
+}
   // ================= VALOR =================
   if (userState[chatId] && userState[chatId].step === "valor") {
     let valor = parseFloat(text.replace(",", "."));
