@@ -487,6 +487,33 @@ ${link}`
 // ================= COMPROVANTE =================
 if (message.photo && userState[chatId] && userState[chatId].step === "comprovante") {
 
+  const fileId = message.photo[message.photo.length - 1].file_id;
+
+  console.log("📸 Foto recebida de:", chatId);
+
+  // 👉 envia pro admin
+  await fetch(`https://api.telegram.org/bot${TOKEN}/sendPhoto`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      chat_id: ADMIN_ID,
+      photo: fileId,
+      caption: `💰 COMPROVANTE RECEBIDO\n\n👤 Usuário: ${chatId}`,
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: "✅ Aprovar", callback_data: `aprovar_${chatId}` },
+            { text: "❌ Recusar", callback_data: `recusar_${chatId}` }
+          ]
+        ]
+      }
+    })
+  });
+
+  delete userState[chatId];
+
+  return sendMessage(chatId, "📸 Comprovante enviado para análise!");
+}
   console.log("📸 Foto recebida de:", chatId);
 
   return sendMessage(chatId, "📸 Comprovante recebido!");
