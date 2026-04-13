@@ -53,8 +53,15 @@ app.post("/", async (req, res) => {
   res.sendStatus(200);
 
   const message = req.body.message;
-  const callback = req.body.callback_query;
-  if (!message || !message.text) return;
+const callback = req.body.callback_query;
+
+// 👉 trata callback primeiro
+if (callback) {
+  console.log("Callback recebido:", callback.data);
+  return;
+}
+
+if (!message || !message.text) return;
 
   const chatId = message.chat.id;
   const text = message.text.trim();
