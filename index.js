@@ -61,6 +61,10 @@ if (callback) {
   return;
 }
 
+// 👉 só depois valida mensagem
+if (!message || !message.text) return;
+}
+
 if (!message || !message.text) return;
 
   const chatId = message.chat.id;
