@@ -57,10 +57,66 @@ const callback = req.body.callback_query;
 
 // 👉 trata callback primeiro
 if (callback) {
-  console.log("Callback recebido:", callback.data);
+  const data = callback.data;
+  const adminChatId = callback.message.chat.id;
+
+  console.log("Callback recebido:", data);
+
+  // ✅ APROVAR
+  if (data.startsWith("aprovar_")) {
+    const userId = data.split("_")[1];
+
+    await fetch(
+      SUPABASE_URL + "/rest/v1/usuarios?id=eq." + userId,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: SUPABASE_KEY,
+          Authorization: "Bearer " + SUPABASE_KEY
+        },
+        body: JSON.stringify({
+          plano_ate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+        })
+      }
+    );
+
+    await sendMessage(userId,
+      "✅ Pagamento aprovado! Acesso liberado por 30 dias."
+    );
+
+    await fetch(`https://api.telegram.org/bot${TOKEN}/editMessageText`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: adminChatId,
+        message_id: callback.message.message_id,
+        text: "✅ Pagamento aprovado"
+      })
+    });
+  }
+
+  // ❌ RECUSAR
+  if (data.startsWith("recusar_")) {
+    const userId = data.split("_")[1];
+
+    await sendMessage(userId,
+      "❌ Não identificamos seu pagamento. Envie o comprovante."
+    );
+
+    await fetch(`https://api.telegram.org/bot${TOKEN}/editMessageText`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: adminChatId,
+        message_id: callback.message.message_id,
+        text: "❌ Pagamento recusado"
+      })
+    });
+  }
+
   return;
 }
-
 // 👉 só depois valida mensagem
 if (!message || !message.text) return;
 
