@@ -154,8 +154,7 @@ app.post("/", async (req, res) => {
     const trial = new Date(user.trial_fim);
     const plano = user.plano_ate ? new Date(user.plano_ate) : null;
 
-    console.log('DEBUG ACESSO:', JSON.stringify({ chatId, plano_ate_raw: user.plano_ate, trial_vencido: agora > trial, plano_vencido: !plano || agora > plano }));
-    if (agora > trial && (!plano || agora > plano)) {
+      if (agora > trial && (!plano || agora > plano)) {
 
       if (text.includes("Já paguei")) {
         userState[chatId] = { step: "comprovante" };
@@ -327,7 +326,6 @@ app.post("/", async (req, res) => {
   }
 
   // ================= VER RESUMO =================
-  console.log("Chegou no handler Ver resumo?", text.includes("Ver resumo"));
   if (text.includes("Ver resumo")) {
     try {
       const response = await fetch(
@@ -340,9 +338,7 @@ app.post("/", async (req, res) => {
         }
       );
 
-      console.log('Status Supabase Registros:', response.status);
       const dados = await response.json();
-      console.log('Dados retornados:', JSON.stringify(dados).substring(0, 200));
       const hoje = new Date();
 
       const inicioSemana = new Date(hoje);
@@ -364,7 +360,10 @@ app.post("/", async (req, res) => {
 
       dados.forEach(item => {
         const valor = Number(item.Valor || 0);
-        const data = new Date(item.Data);
+        // Extrai só a parte da data (YYYY-MM-DD) ignorando timezone
+        const dataStr = item.Data ? item.Data.substring(0, 10) : null;
+        const [ano, mes, dia] = dataStr ? dataStr.split('-').map(Number) : [0,0,0];
+        const data = new Date(ano, mes - 1, dia);
         const isGasto = item.Tipo === "gasto";
 
         if (isGasto) gastos += valor;
