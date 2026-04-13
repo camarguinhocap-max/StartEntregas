@@ -154,6 +154,7 @@ app.post("/", async (req, res) => {
     const trial = new Date(user.trial_fim);
     const plano = user.plano_ate ? new Date(user.plano_ate) : null;
 
+    console.log('DEBUG ACESSO:', JSON.stringify({ chatId, plano_ate_raw: user.plano_ate, trial_vencido: agora > trial, plano_vencido: !plano || agora > plano }));
     if (agora > trial && (!plano || agora > plano)) {
 
       if (text.includes("Já paguei")) {
