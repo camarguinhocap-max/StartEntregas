@@ -55,6 +55,8 @@ app.post("/", async (req, res) => {
 const message = req.body.message;
 const callback = req.body.callback_query;
 
+console.log("BODY:", JSON.stringify(req.body));
+
 // 👉 trata callback primeiro
 if (callback) {
   const data = callback.data;
@@ -118,7 +120,7 @@ if (callback) {
   return;
 }
 // 👉 só depois valida mensagem
-if (!message) return;
+if (!message && !callback) return;
   
   const chatId = message.chat.id;
 const text = message.text ? message.text.trim() : "";
