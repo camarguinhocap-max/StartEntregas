@@ -91,19 +91,28 @@ if (user) {
   // 👉 se clicou já paguei
   if (text.includes("Já paguei")) {
 
-    await sendMessage(ADMIN_ID,
-`💰 POSSÍVEL PAGAMENTO
+  await fetch(`https://api.telegram.org/bot${TOKEN}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      chat_id: ADMIN_ID,
+      text: `💰 NOVO PAGAMENTO\n\n👤 Usuário: ${chatId}`,
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: "✅ Aprovar", callback_data: `aprovar_${chatId}` },
+            { text: "❌ Recusar", callback_data: `recusar_${chatId}` }
+          ]
+        ]
+      }
+    })
+  });
 
-👤 Usuário: ${chatId}
-
-Verificar pagamento manualmente.`);
-
-    return sendMessage(chatId,
+  return sendMessage(chatId,
 `📩 Recebemos sua solicitação!
 
-Seu acesso será liberado após verificação.`
-    );
-  }
+Aguarde aprovação.`);
+}
 
   return sendMessage(chatId,
 `🚫 Seu período grátis acabou.
