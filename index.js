@@ -340,7 +340,9 @@ app.post("/", async (req, res) => {
         }
       );
 
+      console.log('Status Supabase Registros:', response.status);
       const dados = await response.json();
+      console.log('Dados retornados:', JSON.stringify(dados).substring(0, 200));
       const hoje = new Date();
 
       const inicioSemana = new Date(hoje);
