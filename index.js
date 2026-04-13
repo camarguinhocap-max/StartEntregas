@@ -395,31 +395,30 @@ app.post("/", async (req, res) => {
         .map(([cat, val]) => `   • ${cat}: R$ ${val.toFixed(2)}`)
         .join("\n");
 
-      const mensagem =
-        `📊 *RESUMO FINANCEIRO*\n\n` +
-        `📅 *HOJE*\n` +
-        `💰 Ganhos: R$ ${ganhosHoje.toFixed(2)}\n` +
-        `💸 Gastos: R$ ${gastosHoje.toFixed(2)}\n` +
-        `📊 Saldo: R$ ${(ganhosHoje - gastosHoje).toFixed(2)}\n\n` +
-        `📆 *SEMANA*\n` +
-        `💰 Ganhos: R$ ${ganhosSemana.toFixed(2)}\n` +
-        `💸 Gastos: R$ ${gastosSemana.toFixed(2)}\n` +
-        `📊 Saldo: R$ ${(ganhosSemana - gastosSemana).toFixed(2)}\n\n` +
-        `🗓️ *MÊS*\n` +
-        `💰 Ganhos: R$ ${ganhosMes.toFixed(2)}\n` +
-        `💸 Gastos: R$ ${gastosMes.toFixed(2)}\n` +
-        `📊 Saldo: R$ ${(ganhosMes - gastosMes).toFixed(2)}\n` +
-        (categoriasTexto ? `\n📂 *Gastos por categoria:*\n${categoriasTexto}\n` : "") +
-        `\n💼 *TOTAL GERAL*\n` +
-        `💰 Ganhos: R$ ${ganhos.toFixed(2)}\n` +
-        `💸 Gastos: R$ ${gastos.toFixed(2)}\n` +
-        `📊 Saldo: R$ ${(ganhos - gastos).toFixed(2)}`;
-
       const link = "https://v0-startentregras.vercel.app/?user_id=" + chatId;
 
-      return sendMessage(chatId, mensagem + "\n\n📈 Ver dashboard:\n" + link, {
-        parse_mode: "Markdown"
-      });
+      const mensagem =
+        "📊 RESUMO FINANCEIRO\n\n" +
+        "📅 HOJE\n" +
+        "💰 Ganhos: R$ " + ganhosHoje.toFixed(2) + "\n" +
+        "💸 Gastos: R$ " + gastosHoje.toFixed(2) + "\n" +
+        "📊 Saldo: R$ " + (ganhosHoje - gastosHoje).toFixed(2) + "\n\n" +
+        "📆 SEMANA\n" +
+        "💰 Ganhos: R$ " + ganhosSemana.toFixed(2) + "\n" +
+        "💸 Gastos: R$ " + gastosSemana.toFixed(2) + "\n" +
+        "📊 Saldo: R$ " + (ganhosSemana - gastosSemana).toFixed(2) + "\n\n" +
+        "🗓 MES\n" +
+        "💰 Ganhos: R$ " + ganhosMes.toFixed(2) + "\n" +
+        "💸 Gastos: R$ " + gastosMes.toFixed(2) + "\n" +
+        "📊 Saldo: R$ " + (ganhosMes - gastosMes).toFixed(2) + "\n" +
+        (categoriasTexto ? "\nGastos por categoria:\n" + categoriasTexto + "\n" : "") +
+        "\nTOTAL GERAL\n" +
+        "💰 Ganhos: R$ " + ganhos.toFixed(2) + "\n" +
+        "💸 Gastos: R$ " + gastos.toFixed(2) + "\n" +
+        "📊 Saldo: R$ " + (ganhos - gastos).toFixed(2) + "\n\n" +
+        "📈 Ver dashboard:\n" + link;
+
+      return sendMessage(chatId, mensagem);
 
     } catch (error) {
       console.log(error);
