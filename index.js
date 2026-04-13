@@ -5,6 +5,8 @@ const app = express();
 app.use(express.json());
 
 const TOKEN = "8613535785:AAFPfKjg94JavGcU7-WznFRotjHEAGBdVaQ";
+const ADMIN_ID = "7340357750";
+
 
 // 👇 CONFIG SUPABASE
 const SUPABASE_URL = "https://wvqrpliefwtmbswbbjnt.supabase.co";
@@ -85,10 +87,40 @@ if (user) {
   const plano = user.plano_ate ? new Date(user.plano_ate) : null;
 
   if (agora > trial && (!plano || agora > plano)) {
+
+  // 👉 se clicou já paguei
+  if (text.includes("Já paguei")) {
+
+    await sendMessage(ADMIN_ID,
+`💰 POSSÍVEL PAGAMENTO
+
+👤 Usuário: ${chatId}
+
+Verificar pagamento manualmente.`);
+
     return sendMessage(chatId,
-      "🚫 Seu período grátis acabou.\n\nAssine por R$9,90 para continuar.\n\nEm breve: botão de pagamento."
+`📩 Recebemos sua solicitação!
+
+Seu acesso será liberado após verificação.`
     );
   }
+
+  return sendMessage(chatId,
+`🚫 Seu período grátis acabou.
+
+💰 Assine por R$9,90/mês
+
+📌 PIX:
+camargoinfomei@gmail.com
+
+Após pagar, clique abaixo 👇`,
+  {
+    keyboard: [
+      ["✅ Já paguei"]
+    ],
+    resize_keyboard: true
+  });
+}
 }
   console.log("Mensagem:", text);
 
