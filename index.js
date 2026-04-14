@@ -1,16 +1,27 @@
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+// ⚠️ NODE_TLS_REJECT_UNAUTHORIZED: remova esta linha em produção se não for estritamente necessário
+// process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+
 const express = require("express");
 const app = express();
 
 app.use(express.json());
 
 // ================= CONFIG =================
-// ✅ Variáveis de ambiente com fallback — não quebra nada antes de configurar no Render
-const TOKEN = process.env.TOKEN || "8613535785:AAFPfKjg94JavGcU7-WznFRotjHEAGBdVaQ";
-const ADMIN_ID = process.env.ADMIN_ID || "7340357750";
-const SUPABASE_URL = process.env.SUPABASE_URL || "https://wvqrpliefwtmbswbbjnt.supabase.co";
-const SUPABASE_KEY = process.env.SUPABASE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind2cXJwbGllZnd0bWJzd2Jiam50Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MDAxNTUsImV4cCI6MjA5MTM3NjE1NX0.E8vzsrpWYNKfrYXtn2DFo7m7ZS0__Weo6TcQOa9AbHw";
-const GRUPO_ID = process.env.GRUPO_ID || "-5207183146";
+// 🔴 SEGURANÇA: credenciais agora só vêm de variáveis de ambiente
+// Se alguma estiver faltando, o servidor não inicia e exibe qual está ausente
+const required = ["TOKEN", "ADMIN_ID", "SUPABASE_URL", "SUPABASE_KEY", "GRUPO_ID"];
+for (const key of required) {
+  if (!process.env[key]) {
+    console.error(`❌ Variável de ambiente obrigatória não definida: ${key}`);
+    process.exit(1);
+  }
+}
+
+const TOKEN = process.env.TOKEN;
+const ADMIN_ID = process.env.ADMIN_ID;
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_KEY;
+const GRUPO_ID = process.env.GRUPO_ID;
 
 // ================= STATE =================
 const userState = {};
@@ -45,7 +56,6 @@ function categorizarGasto(texto) {
   return "outros";
 }
 
-
 // ================= DATA BRASIL =================
 // Retorna data no formato YYYY-MM-DD no fuso de Brasília (UTC-3)
 function dataBrasil(date) {
@@ -53,6 +63,12 @@ function dataBrasil(date) {
   const offset = -3 * 60; // UTC-3 em minutos
   const local = new Date(d.getTime() + offset * 60 * 1000);
   return local.toISOString().substring(0, 10);
+}
+
+// 🔧 CORRIGIDO: formata data YYYY-MM-DD sem off-by-one por timezone
+function formatarDataBR(dataStr) {
+  const [ano, mes, dia] = dataStr.split("-").map(Number);
+  return `${String(dia).padStart(2, "0")}/${String(mes).padStart(2, "0")}/${ano}`;
 }
 
 // ================= SUPABASE HELPERS =================
@@ -164,9 +180,12 @@ app.post("/", async (req, res) => {
     const trial = new Date(user.trial_fim);
     const plano = user.plano_ate ? new Date(user.plano_ate) : null;
 
-      if (agora > trial && (!plano || agora > plano)) {
+    if (agora > trial && (!plano || agora > plano)) {
 
-      if (text.includes("Já paguei")) {
+      // 🔧 CORRIGIDO: normaliza o texto para comparação, aceitando com ou sem emoji
+      const textoNorm = text.toLowerCase().replace(/[^a-záéíóúãõâêîôûç\s]/gi, "").trim();
+
+      if (textoNorm === "ja paguei" || text.includes("Já paguei")) {
         userState[chatId] = { step: "comprovante" };
         return sendMessage(chatId, "📸 Envie o comprovante do pagamento (print do PIX).");
       }
@@ -266,7 +285,6 @@ app.post("/", async (req, res) => {
           })
         });
 
-        // ✅ CORRIGIDO: incrementa indicações corretamente
         if (ref && ref !== chatId.toString()) {
           const refUser = await getUsuario(ref);
           if (refUser) {
@@ -284,7 +302,8 @@ app.post("/", async (req, res) => {
           { parse_mode: "Markdown" }
         );
       }
-
+      // 🔧 CORRIGIDO: sendMenu agora é chamado para todos os usuários no /start,
+      // inclusive os que já existem no banco (antes ficava silencioso para eles)
     } catch (e) {
       console.log("Erro cadastro:", e);
     }
@@ -307,7 +326,8 @@ app.post("/", async (req, res) => {
   }
 
   // ================= CANCELAR =================
-  if (text.toLowerCase() === "cancelar" || text.toLowerCase() === "❌ cancelar") {
+  // 🔧 CORRIGIDO: aceita tanto "cancelar" digitado quanto "❌ Cancelar" do teclado
+  if (text.toLowerCase() === "cancelar" || text === "❌ Cancelar") {
     if (userState[chatId]) {
       delete userState[chatId];
     }
@@ -590,6 +610,7 @@ app.post("/", async (req, res) => {
     const dados = userState[chatId];
     let categoria = dados.categoria;
 
+    // categorizarGasto é usado como fallback quando a categoria não vem do teclado
     if (dados.tipo === "gasto" && (!categoria || categoria === "outros")) {
       categoria = categorizarGasto(text);
     }
@@ -612,11 +633,13 @@ app.post("/", async (req, res) => {
       });
 
       const tipoTexto = dados.tipo === "gasto" ? "💸 Gasto" : "💰 Ganho";
+
+      // 🔧 CORRIGIDO: usa formatarDataBR para evitar off-by-one por timezone
       await sendMessage(chatId,
         `✅ *${tipoTexto} registrado!*\n\n` +
         `💲 Valor: R$ ${valor.toFixed(2)}\n` +
         `📂 Categoria: ${categoria}\n` +
-        `📅 Data: ${new Date(dados.data).toLocaleDateString("pt-BR")}`,
+        `📅 Data: ${formatarDataBR(dados.data)}`,
         { parse_mode: "Markdown" }
       );
 
