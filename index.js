@@ -105,6 +105,35 @@ async function patchUsuario(userId, body) {
         },
         body: JSON.stringify(body)
       }
+      async function getState(chatId) {
+  try {
+    const user = await getUsuario(chatId);
+    return user?.estado || null;
+  } catch (e) {
+    console.log("Erro getState:", e);
+    return null;
+  }
+}
+
+async function setState(chatId, state) {
+  try {
+    await patchUsuario(chatId, {
+      estado: state
+    });
+  } catch (e) {
+    console.log("Erro setState:", e);
+  }
+}
+
+async function clearState(chatId) {
+  try {
+    await patchUsuario(chatId, {
+      estado: null
+    });
+  } catch (e) {
+    console.log("Erro clearState:", e);
+  }
+}
     );
   } catch (e) {
     console.log("Erro patchUsuario:", e);
