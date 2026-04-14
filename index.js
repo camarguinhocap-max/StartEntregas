@@ -149,6 +149,11 @@ app.post("/", async (req, res) => {
   const message = req.body.message;
   const callback = req.body.callback_query;
 
+  if (!message) return;
+
+const chatId = message.chat.id;
+const text = message.text ? message.text.trim() : "";
+
   console.log("BODY:", JSON.stringify(req.body));
 
   // ================= CALLBACK =================
