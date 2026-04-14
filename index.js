@@ -190,7 +190,9 @@ app.post("/", async (req, res) => {
         return sendMessage(chatId, "📸 Envie o comprovante do pagamento (print do PIX).");
       }
 
-      if (message.photo && userState[chatId] && userState[chatId].step === "comprovante") {
+        const state = await getState(chatId);
+
+        if (message.photo && state && state.step === "comprovante") {
         const fileId = message.photo[message.photo.length - 1].file_id;
         console.log("📸 Comprovante recebido de:", chatId);
 
@@ -210,7 +212,7 @@ app.post("/", async (req, res) => {
           })
         });
 
-        delete userState[chatId];
+        await clearState(chatId);
         return sendMessage(chatId, "📸 Comprovante enviado para análise! Em breve você receberá a confirmação.");
       }
 
