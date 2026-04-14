@@ -216,7 +216,7 @@ app.post("/", async (req, res) => {
       const textoNorm = text.toLowerCase().replace(/[^a-záéíóúãõâêîôûç\s]/gi, "").trim();
 
       if (textoNorm === "ja paguei" || text.includes("Já paguei")) {
-        userState[chatId] = { step: "comprovante" };
+        await setState(chatId, { step: "comprovante" });
         return sendMessage(chatId, "📸 Envie o comprovante do pagamento (print do PIX).");
       }
 
