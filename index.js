@@ -146,15 +146,28 @@ async function clearState(chatId) {
 app.post("/", async (req, res) => {
   res.sendStatus(200);
 
+  // 👇 AQUI entra o bloco que te mandei
   const message = req.body.message;
   const callback = req.body.callback_query;
 
-  if (!message) return;
+  let chatId = null;
+  let text = "";
 
-const chatId = message.chat.id;
-const text = message.text ? message.text.trim() : "";
+  if (message) {
+    chatId = message.chat.id;
+    text = message.text ? message.text.trim() : "";
+  }
+
+  if (callback) {
+    chatId = callback.message.chat.id;
+  }
 
   console.log("BODY:", JSON.stringify(req.body));
+
+  if (!message && !callback) return;
+
+  // 👇 resto do seu código continua normal
+});
 
   // ================= CALLBACK =================
 if (callback) {
