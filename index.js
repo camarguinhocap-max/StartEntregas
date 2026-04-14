@@ -182,12 +182,22 @@ app.post("/", async (req, res) => {
       return;
     }
 
-    if (data.startsWith("aprovar_")) {
-      const userId = data.split("_")[1];
+    const userId = data.split("_")[1];
 
-      await patchUsuario(userId, {
-        plano_ate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-      });
+// 🔍 busca usuário
+const user = await getUsuario(userId);
+
+// 🔒 trava duplicação
+if (user?.pagamento_aprovado) {
+  console.log("Já aprovado:", userId);
+  return;
+}
+
+// ✅ aprova
+await patchUsuario(userId, {
+  plano_ate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+  pagamento_aprovado: true
+});
 
       await sendMessage(userId, "✅ Pagamento aprovado! Acesso liberado por 30 dias.");
 
