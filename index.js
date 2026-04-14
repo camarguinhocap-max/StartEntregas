@@ -105,7 +105,13 @@ async function patchUsuario(userId, body) {
         },
         body: JSON.stringify(body)
       }
-      async function getState(chatId) {
+    );
+  } catch (e) {
+    console.log("Erro patchUsuario:", e);
+  }
+}
+
+async function getState(chatId) {
   try {
     const user = await getUsuario(chatId);
     return user?.estado || null;
@@ -132,11 +138,6 @@ async function clearState(chatId) {
     });
   } catch (e) {
     console.log("Erro clearState:", e);
-  }
-}
-    );
-  } catch (e) {
-    console.log("Erro patchUsuario:", e);
   }
 }
 
