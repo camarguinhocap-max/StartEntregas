@@ -1,14 +1,9 @@
-// ⚠️ NODE_TLS_REJECT_UNAUTHORIZED: remova esta linha em produção se não for estritamente necessário
-// process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-
 const express = require("express");
 const app = express();
 
 app.use(express.json());
 
 // ================= CONFIG =================
-// 🔴 SEGURANÇA: credenciais agora só vêm de variáveis de ambiente
-// Se alguma estiver faltando, o servidor não inicia e exibe qual está ausente
 const required = ["TOKEN", "ADMIN_ID", "SUPABASE_URL", "SUPABASE_KEY", "GRUPO_ID"];
 for (const key of required) {
   if (!process.env[key]) {
@@ -22,9 +17,6 @@ const ADMIN_ID = process.env.ADMIN_ID;
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 const GRUPO_ID = process.env.GRUPO_ID;
-
-// ================= STATE =================
-const userState = {};
 
 // ================= UTIL =================
 
@@ -44,6 +36,7 @@ function textoParaNumero(texto) {
   return total;
 }
 
+// Usado como fallback de categoria quando o usuário não seleciona pelo teclado
 function categorizarGasto(texto) {
   texto = texto.toLowerCase();
   if (texto.includes("gasolina") || texto.includes("posto") || texto.includes("combustivel")) return "combustivel";
@@ -56,16 +49,15 @@ function categorizarGasto(texto) {
   return "outros";
 }
 
-// ================= DATA BRASIL =================
 // Retorna data no formato YYYY-MM-DD no fuso de Brasília (UTC-3)
 function dataBrasil(date) {
   const d = date || new Date();
-  const offset = -3 * 60; // UTC-3 em minutos
+  const offset = -3 * 60;
   const local = new Date(d.getTime() + offset * 60 * 1000);
   return local.toISOString().substring(0, 10);
 }
 
-// 🔧 CORRIGIDO: formata data YYYY-MM-DD sem off-by-one por timezone
+// Formata YYYY-MM-DD para DD/MM/AAAA sem off-by-one de timezone
 function formatarDataBR(dataStr) {
   const [ano, mes, dia] = dataStr.split("-").map(Number);
   return `${String(dia).padStart(2, "0")}/${String(mes).padStart(2, "0")}/${ano}`;
@@ -101,7 +93,8 @@ async function patchUsuario(userId, body) {
         headers: {
           "Content-Type": "application/json",
           apikey: SUPABASE_KEY,
-          Authorization: "Bearer " + SUPABASE_KEY
+          Authorization: "Bearer " + SUPABASE_KEY,
+          Prefer: "return=minimal"
         },
         body: JSON.stringify(body)
       }
@@ -111,34 +104,18 @@ async function patchUsuario(userId, body) {
   }
 }
 
+// Estado do fluxo salvo na coluna `estado` (jsonb) da tabela usuarios
 async function getState(chatId) {
-  try {
-    const user = await getUsuario(chatId);
-    return user?.estado || null;
-  } catch (e) {
-    console.log("Erro getState:", e);
-    return null;
-  }
+  const user = await getUsuario(chatId);
+  return user?.estado || null;
 }
 
 async function setState(chatId, state) {
-  try {
-    await patchUsuario(chatId, {
-      estado: state
-    });
-  } catch (e) {
-    console.log("Erro setState:", e);
-  }
+  await patchUsuario(chatId, { estado: state });
 }
 
 async function clearState(chatId) {
-  try {
-    await patchUsuario(chatId, {
-      estado: null
-    });
-  } catch (e) {
-    console.log("Erro clearState:", e);
-  }
+  await patchUsuario(chatId, { estado: null });
 }
 
 // ================= SERVER =================
@@ -149,21 +126,7 @@ app.post("/", async (req, res) => {
   const message = req.body.message;
   const callback = req.body.callback_query;
 
-  let chatId = null;
-  let text = "";
-
-  if (message) {
-    chatId = message.chat.id;
-    text = message.text ? message.text.trim() : "";
-  }
-
-  if (callback) {
-    chatId = callback.message.chat.id;
-  }
-
   console.log("BODY:", JSON.stringify(req.body));
-
-  if (!message && !callback) return;
 
   // ================= CALLBACK =================
   if (callback) {
@@ -190,16 +153,6 @@ app.post("/", async (req, res) => {
           text: "✅ Pagamento aprovado"
         })
       });
-
-      await fetch(`https://api.telegram.org/bot${TOKEN}/editMessageReplyMarkup`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chat_id: adminChatId,
-          message_id: callback.message.message_id,
-          reply_markup: { inline_keyboard: [] }
-        })
-      });
     }
 
     if (data.startsWith("recusar_")) {
@@ -216,20 +169,15 @@ app.post("/", async (req, res) => {
           text: "❌ Pagamento recusado"
         })
       });
-
-      await fetch(`https://api.telegram.org/bot${TOKEN}/editMessageReplyMarkup`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chat_id: adminChatId,
-          message_id: callback.message.message_id,
-          reply_markup: { inline_keyboard: [] }
-        })
-      });
     }
 
     return;
   }
+
+  if (!message) return;
+
+  const chatId = message.chat.id;
+  const text = message.text ? message.text.trim() : "";
 
   // ================= VALIDA ACESSO =================
   const user = await getUsuario(chatId);
@@ -240,7 +188,7 @@ app.post("/", async (req, res) => {
     const plano = user.plano_ate ? new Date(user.plano_ate) : null;
 
     if (agora > trial && (!plano || agora > plano)) {
-
+      // Usuário sem acesso — só aceita "Já paguei" ou envio de comprovante
       const textoNorm = text.toLowerCase().replace(/[^a-záéíóúãõâêîôûç\s]/gi, "").trim();
 
       if (textoNorm === "ja paguei" || text.includes("Já paguei")) {
@@ -248,50 +196,69 @@ app.post("/", async (req, res) => {
         return sendMessage(chatId, "📸 Envie o comprovante do pagamento (print do PIX).");
       }
 
-      const state = await getState(chatId);
+      if (message.photo) {
+        const state = await getState(chatId);
+        if (state && state.step === "comprovante") {
+          const fileId = message.photo[message.photo.length - 1].file_id;
 
-      if (message && message.photo && state && state.step === "comprovante") {
-        const fileId = message.photo[message.photo.length - 1].file_id;
+          await fetch(`https://api.telegram.org/bot${TOKEN}/sendPhoto`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              chat_id: ADMIN_ID,
+              photo: fileId,
+              caption: `💰 COMPROVANTE RECEBIDO\n\n👤 Usuário: ${chatId}`,
+              reply_markup: {
+                inline_keyboard: [[
+                  { text: "✅ Aprovar", callback_data: `aprovar_${chatId}` },
+                  { text: "❌ Recusar", callback_data: `recusar_${chatId}` }
+                ]]
+              }
+            })
+          });
 
-        await fetch(`https://api.telegram.org/bot${TOKEN}/sendPhoto`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            chat_id: ADMIN_ID,
-            photo: fileId,
-            caption: `💰 COMPROVANTE RECEBIDO\n\n👤 Usuário: ${chatId}`,
-            reply_markup: {
-              inline_keyboard: [[
-                { text: "✅ Aprovar", callback_data: `aprovar_${chatId}` },
-                { text: "❌ Recusar", callback_data: `recusar_${chatId}` }
-              ]]
-            }
-          })
-        });
-      }
-  // ================= COMPROVANTE (usuário ativo) =================
-  if (message.photo && userState[chatId] && userState[chatId].step === "comprovante") {
-    const fileId = message.photo[message.photo.length - 1].file_id;
-    console.log("📸 Foto recebida de:", chatId);
-
-    await fetch(`https://api.telegram.org/bot${TOKEN}/sendPhoto`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: ADMIN_ID,
-        photo: fileId,
-        caption: `💰 COMPROVANTE RECEBIDO\n\n👤 Usuário: ${chatId}`,
-        reply_markup: {
-          inline_keyboard: [[
-            { text: "✅ Aprovar", callback_data: `aprovar_${chatId}` },
-            { text: "❌ Recusar", callback_data: `recusar_${chatId}` }
-          ]]
+          await clearState(chatId);
+          return sendMessage(chatId, "📸 Comprovante enviado para análise! Em breve você receberá a confirmação.");
         }
-      })
-    });
+      }
 
-    delete userState[chatId];
-    return sendMessage(chatId, "📸 Comprovante enviado para análise! Em breve você receberá a confirmação.");
+      // Bloqueia qualquer outra mensagem
+      return sendMessage(chatId,
+        `🚫 Seu período grátis acabou.\n\n💰 Assine por R$9,90/mês\n\n📌 PIX:\ncamargoinfomei@gmail.com\n\nApós pagar, clique abaixo 👇`,
+        {
+          keyboard: [["✅ Já paguei"]],
+          resize_keyboard: true
+        }
+      );
+    }
+  }
+
+  // ================= COMPROVANTE (usuário com acesso ativo) =================
+  if (message.photo) {
+    const state = await getState(chatId);
+    if (state && state.step === "comprovante") {
+      const fileId = message.photo[message.photo.length - 1].file_id;
+      console.log("📸 Foto recebida de:", chatId);
+
+      await fetch(`https://api.telegram.org/bot${TOKEN}/sendPhoto`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: ADMIN_ID,
+          photo: fileId,
+          caption: `💰 COMPROVANTE RECEBIDO\n\n👤 Usuário: ${chatId}`,
+          reply_markup: {
+            inline_keyboard: [[
+              { text: "✅ Aprovar", callback_data: `aprovar_${chatId}` },
+              { text: "❌ Recusar", callback_data: `recusar_${chatId}` }
+            ]]
+          }
+        })
+      });
+
+      await clearState(chatId);
+      return sendMessage(chatId, "📸 Comprovante enviado para análise! Em breve você receberá a confirmação.");
+    }
   }
 
   console.log("Mensagem:", text);
@@ -326,7 +293,8 @@ app.post("/", async (req, res) => {
             id: chatId.toString(),
             trial_fim: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
             indicacoes: 0,
-            indicados_pagantes: 0
+            indicados_pagantes: 0,
+            estado: null
           })
         });
 
@@ -347,8 +315,7 @@ app.post("/", async (req, res) => {
           { parse_mode: "Markdown" }
         );
       }
-      // 🔧 CORRIGIDO: sendMenu agora é chamado para todos os usuários no /start,
-      // inclusive os que já existem no banco (antes ficava silencioso para eles)
+      // sendMenu chamado para todos — novos e existentes
     } catch (e) {
       console.log("Erro cadastro:", e);
     }
@@ -371,17 +338,17 @@ app.post("/", async (req, res) => {
   }
 
   // ================= CANCELAR =================
-  // 🔧 CORRIGIDO: aceita tanto "cancelar" digitado quanto "❌ Cancelar" do teclado
   if (text.toLowerCase() === "cancelar" || text === "❌ Cancelar") {
-    if (userState[chatId]) {
-      delete userState[chatId];
-    }
+    await clearState(chatId);
     return sendMenu(chatId);
   }
 
+  // Carrega estado atual do usuário uma única vez para todos os handlers abaixo
+  const state = await getState(chatId);
+
   // ================= SUGESTÃO (início) =================
   if (text.includes("Sugerir melhoria")) {
-    userState[chatId] = { step: "sugestao" };
+    await setState(chatId, { step: "sugestao" });
     return sendMessage(chatId, "💡 Digite sua sugestão (ou Cancelar para voltar):");
   }
 
@@ -435,9 +402,8 @@ app.post("/", async (req, res) => {
 
       dados.forEach(item => {
         const valor = Number(item.Valor || 0);
-        // Extrai só a parte da data (YYYY-MM-DD) ignorando timezone
         const dataStr = item.Data ? item.Data.substring(0, 10) : null;
-        const [ano, mes, dia] = dataStr ? dataStr.split('-').map(Number) : [0,0,0];
+        const [ano, mes, dia] = dataStr ? dataStr.split('-').map(Number) : [0, 0, 0];
         const data = new Date(ano, mes - 1, dia);
         const isGasto = item.Tipo === "gasto";
 
@@ -503,7 +469,7 @@ app.post("/", async (req, res) => {
 
   // ================= REGISTRAR GASTO =================
   if (text.includes("Registrar gasto")) {
-    userState[chatId] = { step: "categoria_gasto", tipo: "gasto" };
+    await setState(chatId, { step: "categoria_gasto", tipo: "gasto" });
 
     return sendMessage(chatId, "Escolha o tipo de gasto:", {
       keyboard: [
@@ -516,8 +482,23 @@ app.post("/", async (req, res) => {
     });
   }
 
-  // ================= CATEGORIA =================
-  if (userState[chatId] && userState[chatId].step === "categoria_gasto") {
+  // ================= ADICIONAR GANHO =================
+  if (text.includes("Adicionar ganho")) {
+    await setState(chatId, { step: "data", tipo: "ganho" });
+
+    return sendMessage(chatId, "Escolha a data:", {
+      keyboard: [
+        ["📅 Hoje", "📅 Ontem"],
+        ["📅 Outra data", "❌ Cancelar"]
+      ],
+      resize_keyboard: true
+    });
+  }
+
+  // ================= HANDLERS COM ESTADO =================
+
+  // CATEGORIA
+  if (state && state.step === "categoria_gasto") {
     let categoria = "";
 
     if (text.includes("Combustível")) categoria = "combustivel";
@@ -528,14 +509,13 @@ app.post("/", async (req, res) => {
     else if (text.includes("Pró-labore")) categoria = "pro_labore";
     else if (text.includes("Outros")) categoria = "outros";
     else if (text.includes("Cancelar")) {
-      delete userState[chatId];
+      await clearState(chatId);
       return sendMenu(chatId);
     }
 
     if (!categoria) return sendMessage(chatId, "Por favor, escolha uma das opções.");
 
-    userState[chatId].categoria = categoria;
-    userState[chatId].step = "data";
+    await setState(chatId, { step: "data", tipo: "gasto", categoria });
 
     return sendMessage(chatId, "Escolha a data:", {
       keyboard: [
@@ -546,62 +526,45 @@ app.post("/", async (req, res) => {
     });
   }
 
-  // ================= ADICIONAR GANHO =================
-  if (text.includes("Adicionar ganho")) {
-    userState[chatId] = { step: "data", tipo: "ganho" };
-
-    return sendMessage(chatId, "Escolha a data:", {
-      keyboard: [
-        ["📅 Hoje", "📅 Ontem"],
-        ["📅 Outra data", "❌ Cancelar"]
-      ],
-      resize_keyboard: true
-    });
-  }
-
-  // ================= DATAS =================
-  if (text.includes("Hoje") && userState[chatId]) {
-    userState[chatId].data = dataBrasil(new Date());
-    userState[chatId].step = "valor";
-    return sendMessage(chatId, "Digite o valor (ex: 35,90):", {
-      keyboard: [["❌ Cancelar"]],
-      resize_keyboard: true
-    });
-  }
-
-  if (text.includes("Ontem") && userState[chatId]) {
-    const d = new Date();
-    d.setDate(d.getDate() - 1);
-    userState[chatId].data = dataBrasil(d);
-    userState[chatId].step = "valor";
-    return sendMessage(chatId, "Digite o valor (ex: 35,90):", {
-      keyboard: [["❌ Cancelar"]],
-      resize_keyboard: true
-    });
-  }
-
-  if (text.includes("Outra data") && userState[chatId]) {
-    userState[chatId].step = "digitando_data";
-    return sendMessage(chatId, "Digite o dia (ex: 2) ou DD/MM/AAAA:", {
-      keyboard: [["❌ Cancelar"]],
-      resize_keyboard: true
-    });
-  }
-
-  if (userState[chatId] && userState[chatId].step === "digitando_data") {
-    if (text.includes("Cancelar")) {
-      delete userState[chatId];
-      return sendMenu(chatId);
+  // DATA
+  if (state && state.step === "data") {
+    if (text.includes("Hoje")) {
+      await setState(chatId, { ...state, step: "valor", data: dataBrasil(new Date()) });
+      return sendMessage(chatId, "Digite o valor (ex: 35,90):", {
+        keyboard: [["❌ Cancelar"]],
+        resize_keyboard: true
+      });
     }
 
+    if (text.includes("Ontem")) {
+      const d = new Date();
+      d.setDate(d.getDate() - 1);
+      await setState(chatId, { ...state, step: "valor", data: dataBrasil(d) });
+      return sendMessage(chatId, "Digite o valor (ex: 35,90):", {
+        keyboard: [["❌ Cancelar"]],
+        resize_keyboard: true
+      });
+    }
+
+    if (text.includes("Outra data")) {
+      await setState(chatId, { ...state, step: "digitando_data" });
+      return sendMessage(chatId, "Digite o dia (ex: 2) ou DD/MM/AAAA:", {
+        keyboard: [["❌ Cancelar"]],
+        resize_keyboard: true
+      });
+    }
+
+    return sendMessage(chatId, "Por favor, escolha uma das opções de data.");
+  }
+
+  // DIGITANDO DATA
+  if (state && state.step === "digitando_data") {
     const texto = text.trim();
 
     if (/^\d{1,2}$/.test(texto)) {
       const hoje = new Date();
-      const dia = parseInt(texto);
-      const data = new Date(hoje.getFullYear(), hoje.getMonth(), dia);
-      userState[chatId].data = dataBrasil(data);
-      userState[chatId].step = "valor";
+      const data = new Date(hoje.getFullYear(), hoje.getMonth(), parseInt(texto));
+      await setState(chatId, { ...state, step: "valor", data: dataBrasil(data) });
       return sendMessage(chatId, "Digite o valor (ex: 35,90):", {
         keyboard: [["❌ Cancelar"]],
         resize_keyboard: true
@@ -611,8 +574,7 @@ app.post("/", async (req, res) => {
     const partes = texto.split("/");
     if (partes.length === 3) {
       const data = new Date(partes[2], partes[1] - 1, partes[0]);
-      userState[chatId].data = dataBrasil(data);
-      userState[chatId].step = "valor";
+      await setState(chatId, { ...state, step: "valor", data: dataBrasil(data) });
       return sendMessage(chatId, "Digite o valor (ex: 35,90):", {
         keyboard: [["❌ Cancelar"]],
         resize_keyboard: true
@@ -622,41 +584,28 @@ app.post("/", async (req, res) => {
     return sendMessage(chatId, "Formato inválido. Digite o dia (ex: 2) ou DD/MM/AAAA:");
   }
 
-  // ================= SUGESTÃO (captura) =================
-  if (userState[chatId] && userState[chatId].step === "sugestao") {
-    if (text.toLowerCase().includes("cancelar")) {
-      delete userState[chatId];
-      return sendMenu(chatId);
-    }
-
-    await sendMessage(GRUPO_ID,
-      `💡 NOVA SUGESTÃO\n\n👤 User: ${chatId}\n📝 ${text}`
-    );
-
-    delete userState[chatId];
+  // SUGESTÃO (captura)
+  if (state && state.step === "sugestao") {
+    await sendMessage(GRUPO_ID, `💡 NOVA SUGESTÃO\n\n👤 User: ${chatId}\n📝 ${text}`);
+    await clearState(chatId);
     return sendMessage(chatId, "✅ Sugestão enviada! Obrigado pelo feedback.");
   }
 
-  // ================= VALOR =================
-  if (userState[chatId] && userState[chatId].step === "valor") {
-    if (text.includes("Cancelar")) {
-      delete userState[chatId];
-      return sendMenu(chatId);
-    }
-
+  // VALOR
+  if (state && state.step === "valor") {
     let valor = parseFloat(text.replace(",", "."));
 
     if (isNaN(valor)) {
       valor = textoParaNumero(text);
     }
 
-    if (!valor || valor <= 0) return sendMessage(chatId, "Valor inválido. Digite novamente (ex: 35,90):");
+    if (!valor || valor <= 0) {
+      return sendMessage(chatId, "Valor inválido. Digite novamente (ex: 35,90):");
+    }
 
-    const dados = userState[chatId];
-    let categoria = dados.categoria;
+    let categoria = state.categoria;
 
-    // categorizarGasto é usado como fallback quando a categoria não vem do teclado
-    if (dados.tipo === "gasto" && (!categoria || categoria === "outros")) {
+    if (state.tipo === "gasto" && (!categoria || categoria === "outros")) {
       categoria = categorizarGasto(text);
     }
 
@@ -670,21 +619,20 @@ app.post("/", async (req, res) => {
         },
         body: JSON.stringify({
           user_id: chatId.toString(),
-          Tipo: dados.tipo,
+          Tipo: state.tipo,
           Categoria: categoria,
           Valor: valor,
-          Data: dados.data
+          Data: state.data
         })
       });
 
-      const tipoTexto = dados.tipo === "gasto" ? "💸 Gasto" : "💰 Ganho";
+      const tipoTexto = state.tipo === "gasto" ? "💸 Gasto" : "💰 Ganho";
 
-      // 🔧 CORRIGIDO: usa formatarDataBR para evitar off-by-one por timezone
       await sendMessage(chatId,
         `✅ *${tipoTexto} registrado!*\n\n` +
         `💲 Valor: R$ ${valor.toFixed(2)}\n` +
         `📂 Categoria: ${categoria}\n` +
-        `📅 Data: ${formatarDataBR(dados.data)}`,
+        `📅 Data: ${formatarDataBR(state.data)}`,
         { parse_mode: "Markdown" }
       );
 
@@ -693,7 +641,7 @@ app.post("/", async (req, res) => {
       await sendMessage(chatId, "❌ Erro ao salvar. Tente novamente.");
     }
 
-    delete userState[chatId];
+    await clearState(chatId);
     return sendMenu(chatId);
   }
 });
@@ -701,10 +649,7 @@ app.post("/", async (req, res) => {
 // ================= FUNÇÕES =================
 
 function sendMessage(chatId, text, extra) {
-  const body = {
-    chat_id: chatId,
-    text: text
-  };
+  const body = { chat_id: chatId, text };
 
   if (extra) {
     if (extra.keyboard) {
