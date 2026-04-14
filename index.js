@@ -152,57 +152,74 @@ app.post("/", async (req, res) => {
   console.log("BODY:", JSON.stringify(req.body));
 
   // ================= CALLBACK =================
-  if (callback) {
-    const data = callback.data;
-    const adminChatId = callback.message.chat.id;
+if (callback) {
+  const data = callback.data;
+  const adminChatId = callback.message.chat.id;
 
-    console.log("Callback recebido:", data);
+  console.log("Callback recebido:", data);
 
-    if (data.startsWith("aprovar_")) {
-      const userId = data.split("_")[1];
+  if (data.startsWith("aprovar_")) {
+    const userId = data.split("_")[1];
 
-      await patchUsuario(userId, {
-        plano_ate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-      });
+    await patchUsuario(userId, {
+      plano_ate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+    });
 
-      await sendMessage(userId, "✅ Pagamento aprovado! Acesso liberado por 30 dias.");
+    await sendMessage(userId, "✅ Pagamento aprovado! Acesso liberado por 30 dias.");
 
-      await fetch(`https://api.telegram.org/bot${TOKEN}/editMessageText`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chat_id: adminChatId,
-          message_id: callback.message.message_id,
-          text: "✅ Pagamento aprovado"
-        })
-      });
-    }
+    // altera texto
+    await fetch(`https://api.telegram.org/bot${TOKEN}/editMessageText`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: adminChatId,
+        message_id: callback.message.message_id,
+        text: "✅ Pagamento aprovado"
+      })
+    });
 
-    if (data.startsWith("recusar_")) {
-      const userId = data.split("_")[1];
-
-      await sendMessage(userId, "❌ Não identificamos seu pagamento. Envie o comprovante.");
-
-      await fetch(`https://api.telegram.org/bot${TOKEN}/editMessageText`, {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({
-    chat_id: adminChatId,
-    message_id: callback.message.message_id,
-    text: "✅ Pagamento aprovado",
-    reply_markup: { inline_keyboard: [] } // 👈 REMOVE BOTÕES
-  })
-});
-    }
-
-    return;
+    // remove botões (ESSENCIAL)
+    await fetch(`https://api.telegram.org/bot${TOKEN}/editMessageReplyMarkup`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: adminChatId,
+        message_id: callback.message.message_id,
+        reply_markup: { inline_keyboard: [] }
+      })
+    });
   }
 
-  if (!message) return;
+  if (data.startsWith("recusar_")) {
+    const userId = data.split("_")[1];
 
-  const chatId = message.chat.id;
-  const text = message.text ? message.text.trim() : "";
+    await sendMessage(userId, "❌ Não identificamos seu pagamento. Envie o comprovante.");
 
+    // altera texto
+    await fetch(`https://api.telegram.org/bot${TOKEN}/editMessageText`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: adminChatId,
+        message_id: callback.message.message_id,
+        text: "❌ Pagamento recusado"
+      })
+    });
+
+    // remove botões
+    await fetch(`https://api.telegram.org/bot${TOKEN}/editMessageReplyMarkup`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: adminChatId,
+        message_id: callback.message.message_id,
+        reply_markup: { inline_keyboard: [] }
+      })
+    });
+  }
+
+  return;
+}
   // ================= VALIDA ACESSO =================
   const user = await getUsuario(chatId);
 
