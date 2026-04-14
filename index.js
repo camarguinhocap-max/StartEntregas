@@ -4,7 +4,7 @@ const app = express();
 app.use(express.json());
 
 // ================= CONFIG =================
-const required = ["TOKEN", "ADMIN_ID", "SUPABASE_URL", "SUPABASE_KEY", "GRUPO_ID"];
+const required = ["TOKEN", "ADMIN_ID", "SUPABASE_URL", "SUPABASE_KEY", "GRUPO_ID", "WEBHOOK_SECRET"];
 for (const key of required) {
   if (!process.env[key]) {
     console.error(`❌ Variável de ambiente obrigatória não definida: ${key}`);
@@ -17,6 +17,8 @@ const ADMIN_ID = process.env.ADMIN_ID;
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 const GRUPO_ID = process.env.GRUPO_ID;
+const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET;
+const DASHBOARD_URL = process.env.DASHBOARD_URL || "https://v0-startentregras.vercel.app";
 
 // ================= UTIL =================
 
@@ -29,6 +31,11 @@ function textoParaNumero(texto) {
     cinquenta: 50, sessenta: 60, setenta: 70,
     oitenta: 80, noventa: 90, cem: 100, cento: 100
   };
+
+  // Tenta extrair número direto antes de usar o mapa de palavras
+  const numeroDirecto = parseFloat(texto.replace(",", "."));
+  if (!isNaN(numeroDirecto) && numeroDirecto > 0) return numeroDirecto;
+
   let total = 0;
   texto.split(" ").forEach(p => {
     if (mapa[p] !== undefined) total += mapa[p];
@@ -57,6 +64,12 @@ function dataBrasil(date) {
   return local.toISOString().substring(0, 10);
 }
 
+// [FIX #3] Constrói YYYY-MM-DD a partir de dia, mês, ano sem passar por new Date()
+// evitando o bug de timezone duplo
+function montarDataStr(dia, mes, ano) {
+  return `${ano}-${String(mes).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
+}
+
 // Formata YYYY-MM-DD para DD/MM/AAAA sem off-by-one de timezone
 function formatarDataBR(dataStr) {
   const [ano, mes, dia] = dataStr.split("-").map(Number);
@@ -79,7 +92,7 @@ async function getUsuario(chatId) {
     const data = await res.json();
     return data[0] || null;
   } catch (e) {
-    console.log("Erro getUsuario:", e);
+    console.error(JSON.stringify({ event: "getUsuario_error", chatId, error: e.message }));
     return null;
   }
 }
@@ -100,7 +113,7 @@ async function patchUsuario(userId, body) {
       }
     );
   } catch (e) {
-    console.log("Erro patchUsuario:", e);
+    console.error(JSON.stringify({ event: "patchUsuario_error", userId, error: e.message }));
   }
 }
 
@@ -118,9 +131,37 @@ async function clearState(chatId) {
   await patchUsuario(chatId, { estado: null });
 }
 
+// ================= HELPER: envio de comprovante ao admin =================
+async function encaminharComprovante(chatId, fileId) {
+  await fetch(`https://api.telegram.org/bot${TOKEN}/sendPhoto`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      chat_id: ADMIN_ID,
+      photo: fileId,
+      caption: `💰 COMPROVANTE RECEBIDO\n\n👤 Usuário: ${chatId}`,
+      reply_markup: {
+        inline_keyboard: [[
+          { text: "✅ Aprovar", callback_data: `aprovar_${chatId}` },
+          { text: "❌ Recusar", callback_data: `recusar_${chatId}` }
+        ]]
+      }
+    })
+  });
+  await clearState(chatId);
+  return sendMessage(chatId, "📸 Comprovante enviado para análise! Em breve você receberá a confirmação.");
+}
+
 // ================= SERVER =================
 
 app.post("/", async (req, res) => {
+  // ===== [FIX #1] AUTENTICAÇÃO DO WEBHOOK =====
+  const secret = req.headers["x-telegram-bot-api-secret-token"];
+  if (secret !== WEBHOOK_SECRET) {
+    console.warn(JSON.stringify({ event: "webhook_auth_failed", ip: req.ip }));
+    return res.sendStatus(403);
+  }
+
   res.sendStatus(200);
 
   const message = req.body.message;
@@ -134,6 +175,12 @@ app.post("/", async (req, res) => {
     const adminChatId = callback.message.chat.id;
 
     console.log("Callback recebido:", data);
+
+    // ===== [FIX #2] VALIDAR QUE APENAS O ADMIN PODE APROVAR/RECUSAR =====
+    if (adminChatId.toString() !== ADMIN_ID.toString()) {
+      console.warn(JSON.stringify({ event: "callback_unauthorized", chatId: adminChatId }));
+      return;
+    }
 
     if (data.startsWith("aprovar_")) {
       const userId = data.split("_")[1];
@@ -188,7 +235,6 @@ app.post("/", async (req, res) => {
     const plano = user.plano_ate ? new Date(user.plano_ate) : null;
 
     if (agora > trial && (!plano || agora > plano)) {
-      // Usuário sem acesso — só aceita "Já paguei" ou envio de comprovante
       const textoNorm = text.toLowerCase().replace(/[^a-záéíóúãõâêîôûç\s]/gi, "").trim();
 
       if (textoNorm === "ja paguei" || text.includes("Já paguei")) {
@@ -196,33 +242,15 @@ app.post("/", async (req, res) => {
         return sendMessage(chatId, "📸 Envie o comprovante do pagamento (print do PIX).");
       }
 
+      // Comprovante de usuário sem acesso — unificado com bloco abaixo
       if (message.photo) {
         const state = await getState(chatId);
         if (state && state.step === "comprovante") {
           const fileId = message.photo[message.photo.length - 1].file_id;
-
-          await fetch(`https://api.telegram.org/bot${TOKEN}/sendPhoto`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              chat_id: ADMIN_ID,
-              photo: fileId,
-              caption: `💰 COMPROVANTE RECEBIDO\n\n👤 Usuário: ${chatId}`,
-              reply_markup: {
-                inline_keyboard: [[
-                  { text: "✅ Aprovar", callback_data: `aprovar_${chatId}` },
-                  { text: "❌ Recusar", callback_data: `recusar_${chatId}` }
-                ]]
-              }
-            })
-          });
-
-          await clearState(chatId);
-          return sendMessage(chatId, "📸 Comprovante enviado para análise! Em breve você receberá a confirmação.");
+          return encaminharComprovante(chatId, fileId);
         }
       }
 
-      // Bloqueia qualquer outra mensagem
       return sendMessage(chatId,
         `🚫 Seu período grátis acabou.\n\n💰 Assine por R$9,90/mês\n\n📌 PIX:\ncamargoinfomei@gmail.com\n\nApós pagar, clique abaixo 👇`,
         {
@@ -234,30 +262,12 @@ app.post("/", async (req, res) => {
   }
 
   // ================= COMPROVANTE (usuário com acesso ativo) =================
+  // [FIX: bloco unificado — evita duplicação de lógica]
   if (message.photo) {
     const state = await getState(chatId);
     if (state && state.step === "comprovante") {
       const fileId = message.photo[message.photo.length - 1].file_id;
-      console.log("📸 Foto recebida de:", chatId);
-
-      await fetch(`https://api.telegram.org/bot${TOKEN}/sendPhoto`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chat_id: ADMIN_ID,
-          photo: fileId,
-          caption: `💰 COMPROVANTE RECEBIDO\n\n👤 Usuário: ${chatId}`,
-          reply_markup: {
-            inline_keyboard: [[
-              { text: "✅ Aprovar", callback_data: `aprovar_${chatId}` },
-              { text: "❌ Recusar", callback_data: `recusar_${chatId}` }
-            ]]
-          }
-        })
-      });
-
-      await clearState(chatId);
-      return sendMessage(chatId, "📸 Comprovante enviado para análise! Em breve você receberá a confirmação.");
+      return encaminharComprovante(chatId, fileId);
     }
   }
 
@@ -315,9 +325,8 @@ app.post("/", async (req, res) => {
           { parse_mode: "Markdown" }
         );
       }
-      // sendMenu chamado para todos — novos e existentes
     } catch (e) {
-      console.log("Erro cadastro:", e);
+      console.error(JSON.stringify({ event: "start_error", chatId, error: e.message }));
     }
 
     return sendMenu(chatId);
@@ -436,7 +445,7 @@ app.post("/", async (req, res) => {
         .map(([cat, val]) => `   • ${cat}: R$ ${val.toFixed(2)}`)
         .join("\n");
 
-      const link = "https://v0-startentregras.vercel.app/?user_id=" + chatId;
+      const link = `${DASHBOARD_URL}/?user_id=${chatId}`;
 
       const mensagem =
         "📊 RESUMO FINANCEIRO\n\n" +
@@ -462,7 +471,7 @@ app.post("/", async (req, res) => {
       return sendMessage(chatId, mensagem);
 
     } catch (error) {
-      console.log(error);
+      console.error(JSON.stringify({ event: "resumo_error", chatId, error: error.message }));
       return sendMessage(chatId, "Erro ao buscar dados.");
     }
   }
@@ -561,20 +570,22 @@ app.post("/", async (req, res) => {
   if (state && state.step === "digitando_data") {
     const texto = text.trim();
 
+    // [FIX #3] Só dia digitado — monta string sem passar por new Date()
     if (/^\d{1,2}$/.test(texto)) {
       const hoje = new Date();
-      const data = new Date(hoje.getFullYear(), hoje.getMonth(), parseInt(texto));
-      await setState(chatId, { ...state, step: "valor", data: dataBrasil(data) });
+      const dataStr = montarDataStr(parseInt(texto), hoje.getMonth() + 1, hoje.getFullYear());
+      await setState(chatId, { ...state, step: "valor", data: dataStr });
       return sendMessage(chatId, "Digite o valor (ex: 35,90):", {
         keyboard: [["❌ Cancelar"]],
         resize_keyboard: true
       });
     }
 
+    // [FIX #3] DD/MM/AAAA — monta string sem passar por new Date()
     const partes = texto.split("/");
     if (partes.length === 3) {
-      const data = new Date(partes[2], partes[1] - 1, partes[0]);
-      await setState(chatId, { ...state, step: "valor", data: dataBrasil(data) });
+      const dataStr = montarDataStr(parseInt(partes[0]), parseInt(partes[1]), partes[2]);
+      await setState(chatId, { ...state, step: "valor", data: dataStr });
       return sendMessage(chatId, "Digite o valor (ex: 35,90):", {
         keyboard: [["❌ Cancelar"]],
         resize_keyboard: true
@@ -586,7 +597,9 @@ app.post("/", async (req, res) => {
 
   // SUGESTÃO (captura)
   if (state && state.step === "sugestao") {
-    await sendMessage(GRUPO_ID, `💡 NOVA SUGESTÃO\n\n👤 User: ${chatId}\n📝 ${text}`);
+    // Limita tamanho da sugestão
+    const sugestao = text.substring(0, 500);
+    await sendMessage(GRUPO_ID, `💡 NOVA SUGESTÃO\n\n👤 User: ${chatId}\n📝 ${sugestao}`);
     await clearState(chatId);
     return sendMessage(chatId, "✅ Sugestão enviada! Obrigado pelo feedback.");
   }
@@ -637,7 +650,7 @@ app.post("/", async (req, res) => {
       );
 
     } catch (e) {
-      console.log(e);
+      console.error(JSON.stringify({ event: "salvar_registro_error", chatId, error: e.message }));
       await sendMessage(chatId, "❌ Erro ao salvar. Tente novamente.");
     }
 
