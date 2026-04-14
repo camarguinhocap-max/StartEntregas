@@ -146,7 +146,6 @@ async function clearState(chatId) {
 app.post("/", async (req, res) => {
   res.sendStatus(200);
 
-  // 👇 AQUI entra o bloco que te mandei
   const message = req.body.message;
   const callback = req.body.callback_query;
 
@@ -166,78 +165,72 @@ app.post("/", async (req, res) => {
 
   if (!message && !callback) return;
 
-  // 👇 resto do seu código continua normal
-});
-
   // ================= CALLBACK =================
-if (callback) {
-  const data = callback.data;
-  const adminChatId = callback.message.chat.id;
+  if (callback) {
+    const data = callback.data;
+    const adminChatId = callback.message.chat.id;
 
-  console.log("Callback recebido:", data);
+    console.log("Callback recebido:", data);
 
-  if (data.startsWith("aprovar_")) {
-    const userId = data.split("_")[1];
+    if (data.startsWith("aprovar_")) {
+      const userId = data.split("_")[1];
 
-    await patchUsuario(userId, {
-      plano_ate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-    });
+      await patchUsuario(userId, {
+        plano_ate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+      });
 
-    await sendMessage(userId, "✅ Pagamento aprovado! Acesso liberado por 30 dias.");
+      await sendMessage(userId, "✅ Pagamento aprovado! Acesso liberado por 30 dias.");
 
-    // altera texto
-    await fetch(`https://api.telegram.org/bot${TOKEN}/editMessageText`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: adminChatId,
-        message_id: callback.message.message_id,
-        text: "✅ Pagamento aprovado"
-      })
-    });
+      await fetch(`https://api.telegram.org/bot${TOKEN}/editMessageText`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: adminChatId,
+          message_id: callback.message.message_id,
+          text: "✅ Pagamento aprovado"
+        })
+      });
 
-    // remove botões (ESSENCIAL)
-    await fetch(`https://api.telegram.org/bot${TOKEN}/editMessageReplyMarkup`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: adminChatId,
-        message_id: callback.message.message_id,
-        reply_markup: { inline_keyboard: [] }
-      })
-    });
+      await fetch(`https://api.telegram.org/bot${TOKEN}/editMessageReplyMarkup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: adminChatId,
+          message_id: callback.message.message_id,
+          reply_markup: { inline_keyboard: [] }
+        })
+      });
+    }
+
+    if (data.startsWith("recusar_")) {
+      const userId = data.split("_")[1];
+
+      await sendMessage(userId, "❌ Não identificamos seu pagamento. Envie o comprovante.");
+
+      await fetch(`https://api.telegram.org/bot${TOKEN}/editMessageText`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: adminChatId,
+          message_id: callback.message.message_id,
+          text: "❌ Pagamento recusado"
+        })
+      });
+
+      await fetch(`https://api.telegram.org/bot${TOKEN}/editMessageReplyMarkup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: adminChatId,
+          message_id: callback.message.message_id,
+          reply_markup: { inline_keyboard: [] }
+        })
+      });
+    }
+
+    return;
   }
 
-  if (data.startsWith("recusar_")) {
-    const userId = data.split("_")[1];
-
-    await sendMessage(userId, "❌ Não identificamos seu pagamento. Envie o comprovante.");
-
-    // altera texto
-    await fetch(`https://api.telegram.org/bot${TOKEN}/editMessageText`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: adminChatId,
-        message_id: callback.message.message_id,
-        text: "❌ Pagamento recusado"
-      })
-    });
-
-    // remove botões
-    await fetch(`https://api.telegram.org/bot${TOKEN}/editMessageReplyMarkup`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: adminChatId,
-        message_id: callback.message.message_id,
-        reply_markup: { inline_keyboard: [] }
-      })
-    });
-  }
-
-  return;
-}
   // ================= VALIDA ACESSO =================
   const user = await getUsuario(chatId);
 
@@ -248,7 +241,6 @@ if (callback) {
 
     if (agora > trial && (!plano || agora > plano)) {
 
-      // 🔧 CORRIGIDO: normaliza o texto para comparação, aceitando com ou sem emoji
       const textoNorm = text.toLowerCase().replace(/[^a-záéíóúãõâêîôûç\s]/gi, "").trim();
 
       if (textoNorm === "ja paguei" || text.includes("Já paguei")) {
@@ -256,11 +248,10 @@ if (callback) {
         return sendMessage(chatId, "📸 Envie o comprovante do pagamento (print do PIX).");
       }
 
-        const state = await getState(chatId);
+      const state = await getState(chatId);
 
-        if (message.photo && state && state.step === "comprovante") {
+      if (message && message.photo && state && state.step === "comprovante") {
         const fileId = message.photo[message.photo.length - 1].file_id;
-        console.log("📸 Comprovante recebido de:", chatId);
 
         await fetch(`https://api.telegram.org/bot${TOKEN}/sendPhoto`, {
           method: "POST",
@@ -278,6 +269,20 @@ if (callback) {
           })
         });
 
+        await clearState(chatId);
+        return sendMessage(chatId, "📸 Comprovante enviado para análise!");
+      }
+
+      return sendMessage(chatId,
+        `🚫 Seu período grátis acabou.\n\n💰 Assine por R$9,90/mês\n\n📌 PIX:\ncamargoinfomei@gmail.com\n\nApós pagar, clique abaixo 👇`,
+        {
+          keyboard: [["✅ Já paguei"]],
+          resize_keyboard: true
+        }
+      );
+    }
+  }
+});
         await clearState(chatId);
         return sendMessage(chatId, "📸 Comprovante enviado para análise! Em breve você receberá a confirmação.");
       }
