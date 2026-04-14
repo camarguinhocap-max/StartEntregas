@@ -184,14 +184,15 @@ app.post("/", async (req, res) => {
       await sendMessage(userId, "❌ Não identificamos seu pagamento. Envie o comprovante.");
 
       await fetch(`https://api.telegram.org/bot${TOKEN}/editMessageText`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chat_id: adminChatId,
-          message_id: callback.message.message_id,
-          text: "❌ Pagamento recusado"
-        })
-      });
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    chat_id: adminChatId,
+    message_id: callback.message.message_id,
+    text: "✅ Pagamento aprovado",
+    reply_markup: { inline_keyboard: [] } // 👈 REMOVE BOTÕES
+  })
+});
     }
 
     return;
