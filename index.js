@@ -268,19 +268,7 @@ app.post("/", async (req, res) => {
             }
           })
         });
-
-        await clearState(chatId);
-        return sendMessage(chatId, "📸 Comprovante enviado para análise!");
-      }
-
-      return sendMessage(chatId,
-        `🚫 Seu período grátis acabou.\n\n💰 Assine por R$9,90/mês\n\n📌 PIX:\ncamargoinfomei@gmail.com\n\nApós pagar, clique abaixo 👇`,
-        {
-          keyboard: [["✅ Já paguei"]],
-          resize_keyboard: true
-        }
-      );
-    }
+      
   }
 });
         await clearState(chatId);
