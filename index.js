@@ -268,7 +268,7 @@ app.post("/", async (req, res) => {
             }
           })
         });
-  
+      }
   // ================= COMPROVANTE (usuário ativo) =================
   if (message.photo && userState[chatId] && userState[chatId].step === "comprovante") {
     const fileId = message.photo[message.photo.length - 1].file_id;
