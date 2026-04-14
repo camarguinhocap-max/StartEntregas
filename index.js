@@ -268,23 +268,7 @@ app.post("/", async (req, res) => {
             }
           })
         });
-      
-  }
-});
-        await clearState(chatId);
-        return sendMessage(chatId, "📸 Comprovante enviado para análise! Em breve você receberá a confirmação.");
-      }
-
-      return sendMessage(chatId,
-        `🚫 Seu período grátis acabou.\n\n💰 Assine por R$9,90/mês\n\n📌 PIX:\ncamargoinfomei@gmail.com\n\nApós pagar, clique abaixo 👇`,
-        {
-          keyboard: [["✅ Já paguei"]],
-          resize_keyboard: true
-        }
-      );
-    }
-  }
-
+  
   // ================= COMPROVANTE (usuário ativo) =================
   if (message.photo && userState[chatId] && userState[chatId].step === "comprovante") {
     const fileId = message.photo[message.photo.length - 1].file_id;
